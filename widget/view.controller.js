@@ -4,18 +4,18 @@
    Copyright end */
 "use strict";
 // VIEW controller. The harness/SOAR resolves the controller name as
-// `<name><numericVersion>DevCtrl` -- fortiedrCommandTimeline110DevCtrl for
+// `<name><numericVersion>DevCtrl` -- fortiedrCommandTimeline120DevCtrl for
 // fortiedrCommandTimeline v1.0.1. `widget bump` rewrites this suffix on a
 // version change; never hand-edit it.
 (function () {
   angular
     .module("cybersponse")
-    .controller("fortiedrCommandTimeline110DevCtrl", fortiedrCommandTimeline110DevCtrl);
+    .controller("fortiedrCommandTimeline120DevCtrl", fortiedrCommandTimeline120DevCtrl);
 
-  fortiedrCommandTimeline110DevCtrl.$inject =
+  fortiedrCommandTimeline120DevCtrl.$inject =
     ["$scope", "config", "FormEntityService", "$http", "$window", "$state", "$timeout"];
 
-  function fortiedrCommandTimeline110DevCtrl($scope, config, FormEntityService, $http, $window, $state, $timeout) {
+  function fortiedrCommandTimeline120DevCtrl($scope, config, FormEntityService, $http, $window, $state, $timeout) {
     var m = $window.fortiedrCommandTimelineModel;    // sourcedata -> timeline
     var g = $window.fortiedrCommandTimelineGraph;   // timeline -> graph model
     var FETCH_TIMEOUT_MS = 8000;
@@ -78,6 +78,10 @@
         return;
       }
       $scope.event = m.buildEvent(timeline);
+      // The event's action ("Block"/"Log") -- the FortiEDR API's own verdict
+      // vocabulary. Rendered on the internet-host card when the connector
+      // stores it; absent data renders nothing, never a guess.
+      $scope.recordAction = String(rec.action || "");
       $scope.state = "ready";
       mountGraph(timeline);
     }
@@ -91,7 +95,7 @@
         $scope.error = "The graph library failed to load.";
         return;
       }
-      var graph = g.toGraph(timeline);
+      var graph = g.toGraph(timeline, { action: $scope.recordAction });
       if (!graph.nodes.length) {          // timeline present, stacks empty
         $scope.graphEmpty = true;         // -> the no-stages note, not a graph
         $scope.state = "ready";
@@ -110,21 +114,32 @@
         var container = document.getElementById("fctl-cy");
         if (!container || !container.parentElement) return;  // re-rendered away
         if (cy) { try { cy.destroy(); } catch (e) {} cy = null; }
+        // The snake layout needs the mounted viewport's pixel size -- this is
+        // the first moment the container is measurable.
+        var env = {
+          width: container.clientWidth || 0,
+          height: container.clientHeight || 0
+        };
         cy = C({
           container: container,
           elements: elements,
           style: g.graphStyle(),
-          layout: g.graphLayout(graph),
+          layout: g.graphLayout(graph, env),
           wheelSensitivity: 0.2,
           boxSelectionEnabled: false,
           autoungrabify: true
         });
         cy.on("tap", "node", function (evt) {
+          evt.target.select();
           select(evt.target.id(), graph);
           $scope.$apply();
         });
         cy.on("tap", function (evt) {
-          if (evt.target === cy) { $scope.selected = null; $scope.$apply(); }
+          if (evt.target === cy) {
+            cy.$(":selected").unselect();
+            $scope.selected = null;
+            $scope.$apply();
+          }
         });
         $window.__fctlCy = cy; // expose for debugging / e2e node-tap driving
       }, GRAPH_SETTLE_MS);

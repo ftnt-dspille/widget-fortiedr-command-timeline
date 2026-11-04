@@ -19,10 +19,20 @@
  *     helper) produce no edge -- the console's chain only shows stages it
  *     kept.
  *
- * Live-derived chain shape (bash alert, sourceId 1508164): a clean
- * 9-node line systemd(1) -> sshd(1064) -> sshd(5225) -> sshd(5300) ->
- * bash(5301) -> sudo(5302) -> bash(5304) -> timeout(5345) -> bash(5346,
- * the /dev/tcp reverse shell).
+ * INTERNET HOST node (API-derived, nothing invented): when the event
+ * carries a destination/remoteIP AND at least one CONNECTION-type stage
+ * (live-proven stage name: "CONNECTION STACK"), a terminal net node is
+ * appended holding the IP + autonomous system (+ country / remote URL),
+ * linked from every process that owned a connection stage. The net node's
+ * stages ARE those connection stages, so tapping it shows the exact
+ * command that reached out. No connection stage -> no net node: the event
+ * header already carries the destination, and an edge we cannot anchor
+ * would be a guess.
+ *
+ * Layout: linear chains (the common case) snake-wrap into rows of big
+ * readable cards at zoom 1, ztp zig-zag style; branched graphs fall back
+ * to dagre left-to-right. The extension registers defensively via the
+ * controller (`C._fctlDagreRegistered`).
  */
 "use strict";
 
@@ -51,17 +61,34 @@
     return !ANCESTRY_STAGES[String(stageName || "").toUpperCase().trim()];
   }
 
+  function isConnectionStage(stageName) {
+    return /CONNECTION/i.test(String(stageName || ""));
+  }
+
+  // ASCII ellipsis only: the en/em dash characters are banned by the
+  // pre-commit hook, and "..." reads the same on a canvas.
+  function ellipsize(s, n) {
+    s = String(s === null || s === undefined ? "" : s);
+    if (s.length <= n) return s;
+    return s.slice(0, Math.max(0, n - 3)) + "...";
+  }
+
   /**
    * Build the graph view-model from the trimmed timeline (the object
    * extractTimeline returns -- buildStages reads its .stacks).
+   * opts.action: the event's action ("Block"/"Log") from the record, when
+   * the connector stores it -- rendered on the net card, never invented.
    * Returns { nodes, edges, roots }:
-   *   node: { id, pid, label, time, activity, kinds, stages }
+   *   node: { id, pid, name, label, command, activity, net, kinds, stages }
    *     - stages: chronologically sorted shaped stages (timelineModel's
-   *       shape: stage/process/path/pid/auxPid/command/cert/bits/time/...)
-   *   edge: { source, target } (node ids, parent -> child)
-   *   roots: node ids with no incoming edge (layout fallback + ordering)
+   *       shape); `command` is the newest stage's command line;
+   *     - net: null on process nodes; the { ip, asn, country, remoteUrl,
+   *       action } facts on the internet-host node.
+   *   edge: { source, target, net } (node ids, parent -> child; net edges
+   *   flagged for the dashed style).
+   *   roots: node ids with no incoming edge (dagre fallback ordering).
    */
-  function toGraph(timeline) {
+  function toGraph(timeline, opts) {
     var shaped = MODEL().buildStages(timeline);
     var byId = {};
     var order = [];
@@ -74,12 +101,11 @@
         node = {
           id: key,
           pid: st.pid,
-          // Two lines: the process name, and its PID -- chains repeat names
-          // (three sshd, three bash in the live chains), and without the pid
-          // the analyst cannot tell which node is which.
-          label: st.process + (st.pid ? "\nPID " + st.pid : ""),
-          time: "",
+          name: st.process || "unknown",
+          label: st.process || "unknown",
+          command: "",
           activity: false,
+          net: null,
           kinds: [],
           stages: [],
           firstEpoch: Number.POSITIVE_INFINITY
@@ -91,10 +117,8 @@
       // Shaped stages carry the name as `stage` (NOT the raw `stageName`).
       if (st.stage && node.kinds.indexOf(st.stage) === -1) node.kinds.push(st.stage);
       if (isActivity(st.stage)) node.activity = true;
-      if (st.epoch < node.firstEpoch) {
-        node.firstEpoch = st.epoch;
-        node.time = st.time || "";      // the earliest stage's renderable time
-      }
+      if (st.command) node.command = st.command;   // stages are chronological
+      if (st.epoch < node.firstEpoch) node.firstEpoch = st.epoch;
       stageNode[i] = node;
     });
 
@@ -102,16 +126,64 @@
 
     var edges = [];
     var seen = {};
+    function addEdge(from, to, isNet) {
+      var key = from.id + "->" + to.id;
+      if (seen[key]) return;
+      seen[key] = true;
+      edges.push({ source: from.id, target: to.id, net: !!isNet });
+    }
+
     shaped.forEach(function (st, i) {
       var from = stageNode[i];
       if (!st.auxPid) return;                       // no spawned pid recorded
       var to = byId[st.auxPid];
       if (!to || to === from) return;               // dangling target, or self
-      var key = from.id + "->" + to.id;
-      if (seen[key]) return;
-      seen[key] = true;
-      edges.push({ source: from.id, target: to.id });
+      addEdge(from, to, false);
     });
+
+    // The internet-host node, when the event both names a destination and
+    // carries a connection stage to anchor it to.
+    var ip = timeline && (timeline.destination || timeline.remoteIP);
+    var connPairs = [];
+    shaped.forEach(function (st, i) {
+      if (isConnectionStage(st.stage)) connPairs.push({ node: stageNode[i], st: st });
+    });
+    if (ip && connPairs.length) {
+      var action = opts && opts.action ? String(opts.action) : "";
+      var net = {
+        id: "net:" + ip,
+        pid: "",
+        name: "Internet host" + (action ? " (" + action + ")" : ""),
+        label: "",
+        command: "",
+        activity: false,
+        net: {
+          ip: ip,
+          asn: timeline.asn || "",
+          country: timeline.country || "",
+          remoteUrl: timeline.remoteUrl || "",
+          action: action
+        },
+        kinds: ["INTERNET HOST"],
+        stages: connPairs.map(function (p) { return p.st; }),
+        firstEpoch: Number.POSITIVE_INFINITY
+      };
+      var lines = [net.name, ip];
+      if (timeline.asn) lines.push("AS " + timeline.asn);
+      if (timeline.country) lines.push(timeline.country);
+      if (timeline.remoteUrl) lines.push(ellipsize(timeline.remoteUrl, 34));
+      net.label = lines.join("\n");
+      byId[net.id] = net;
+      nodes.push(net);
+      // Every process that owned a connection stage talked to this host.
+      var linked = {};
+      connPairs.forEach(function (p) {
+        if (p.node && p.node !== net && !linked[p.node.id]) {
+          linked[p.node.id] = true;
+          addEdge(p.node, net, true);
+        }
+      });
+    }
 
     var targets = {};
     edges.forEach(function (e) { targets[e.target] = true; });
@@ -119,9 +191,35 @@
                      .map(function (n) { return n.id; });
     // Deterministic root order: earliest first-stage stamp wins (Infinity --
     // unstampable nodes -- sink to the end).
-    roots.sort(function (a, b) { return byId[a].firstEpoch - byId[b].firstEpoch; });
+    roots.sort(function (a, b) {
+      return (byId[a].firstEpoch || 0) - (byId[b].firstEpoch || 0);
+    });
 
     return { nodes: nodes, edges: edges, roots: roots };
+  }
+
+  // The card's kind line: the first ACTIVITY kind (with "+N" when the node
+  // merged more kinds), or nothing on ancestry-only cards -- a chain of
+  // "PARENT PROCESS CREATION" lines would be pure noise; the slate border
+  // already says ancestry.
+  function kindText(node) {
+    if (!node || node.net) return "";
+    var acts = node.kinds.filter(function (k) { return isActivity(k); });
+    if (!acts.length) return "";
+    return acts.length > 1 ? acts[0] + " +" + (acts.length - 1) : acts[0];
+  }
+
+  // The canvas card: process name / PID / what it did / how. Compact on
+  // purpose -- ancestry cards are two short lines.
+  function cardLabel(node) {
+    if (!node) return "";
+    if (node.net) return node.label;
+    var lines = [ellipsize(node.name, 26)];
+    if (node.pid) lines.push("PID " + node.pid);
+    var kind = kindText(node);
+    if (kind) lines.push(ellipsize(kind, 34));
+    if (node.command) lines.push(ellipsize(node.command, 42));
+    return lines.join("\n");
   }
 
   /** Cytoscape element JSON for a graph. */
@@ -130,23 +228,26 @@
       nodes: graph.nodes.map(function (n) {
         return {
           data: {
-            id: n.id, label: n.label, pid: n.pid, time: n.time,
-            activity: n.activity, kindCount: n.kinds.length,
-            stageCount: n.stages.length
+            id: n.id, label: cardLabel(n), name: n.name, pid: n.pid,
+            color: n.net ? COLORS.NET_BORDER
+                 : (n.activity ? COLORS.ACTIVITY_BORDER : COLORS.ANCESTRY_BORDER),
+            net: !!n.net, activity: !!n.activity,
+            kindCount: n.kinds.length, stageCount: n.stages.length
           }
         };
       }),
       edges: graph.edges.map(function (e, i) {
-        return { data: { id: "e" + i, source: e.source, target: e.target } };
+        return { data: { id: "e" + i, source: e.source, target: e.target, net: !!e.net } };
       })
     };
   }
 
-  // Palette: mid-dark fills so the white labels read on light AND dark
-  // panels without theme detection. The activity fill is the FortiEDR
-  // console's detection red; ancestry stays slate.
-  var NEUTRAL_FILL = "#4b5563", NEUTRAL_BORDER = "#333b47";
-  var ACTIVITY_FILL = "#c2413b", ACTIVITY_BORDER = "#8f2d28";
+  // Palette (ztp card idiom): ONE dark fill for every card; the 4px BORDER
+  // carries the meaning -- slate = ancestry, red = activity, blue = the
+  // internet host. White labels read on the fixed dark fill in light AND
+  // dark panels.
+  var FILL = "#2b3648", LABEL = "#e8ebf0";
+  var ANCESTRY_BORDER = "#64748b", ACTIVITY_BORDER = "#e5484d", NET_BORDER = "#3b82f6";
   var EDGE_COLOR = "#7b8494";
   var SELECT_COLOR = "#22d3ee";
 
@@ -156,31 +257,23 @@
         selector: "node",
         style: {
           shape: "round-rectangle",
-          width: "label", height: 62,
-          "padding-left": "14px", "padding-right": "14px",
+          width: 200, height: "label",
           "padding-top": "8px", "padding-bottom": "8px",
-          "background-color": NEUTRAL_FILL,
-          "border-width": 2, "border-color": NEUTRAL_BORDER,
+          "background-color": FILL,
+          "border-width": 4, "border-color": "data(color)",
           label: "data(label)",
-          color: "#ffffff",
-          "font-size": 13, "font-weight": 600,
+          color: LABEL,
+          "font-size": 11, "font-weight": 600,
           "font-family": "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
           "text-valign": "center", "text-halign": "center",
-          "text-wrap": "wrap", "text-max-width": 150,
+          "text-wrap": "wrap", "text-max-width": 176,
           "text-margin-y": 0
-        }
-      },
-      {
-        selector: "node[activity]",
-        style: {
-          "background-color": ACTIVITY_FILL,
-          "border-color": ACTIVITY_BORDER
         }
       },
       {
         selector: "node.selected",
         style: {
-          "border-width": 3,
+          "border-width": 6,
           "border-color": SELECT_COLOR
         }
       },
@@ -194,37 +287,107 @@
           "arrow-scale": 1.1,
           "curve-style": "bezier"
         }
+      },
+      {
+        // A network connection is not a spawn: dashed marks the difference.
+        selector: "edge[net]",
+        style: { "line-style": "dashed" }
       }
     ];
   }
 
+  // Card geometry shared by the style and the snake layout. The style's
+  // width IS 200 -- the snake math must never disagree with the paint.
+  var CARD_W = 200, CARD_H = 78;   // height nominal: real cards auto-height
+  var SEP_X = 60, SEP_Y = 46, PAD = 30;
+
   /**
-   * dagre left-to-right (the spawn chain flows the way it executed), with
-   * the breadthfirst fallback if the extension did not register. Registered
-   * defensively by the controller; the flag lives on the cytoscape fn.
+   * Snake layout for LINEAR chains: the chain wraps boustrophedon into rows
+   * sized to the viewport, so every card renders at zoom 1 (dagre on a
+   * 9-card line would shrink the whole graph to ~0.6x -- the unreadable
+   * look). Returns null for anything with a branch, more than one root, or
+   * a disconnected node: those get dagre.
    */
-  function graphLayout(graph) {
+  function snakeLayout(graph, env) {
+    if (!env || !(env.width > 0)) return null;
+    var indeg = {}, outdeg = {};
+    graph.edges.forEach(function (e) {
+      outdeg[e.source] = (outdeg[e.source] || 0) + 1;
+      indeg[e.target] = (indeg[e.target] || 0) + 1;
+    });
+    var roots = graph.nodes.filter(function (n) { return !indeg[n.id]; });
+    if (roots.length !== 1) return null;
+    for (var i = 0; i < graph.nodes.length; i++) {
+      var id = graph.nodes[i].id;
+      if ((outdeg[id] || 0) > 1 || (indeg[id] || 0) > 1) return null;
+    }
+    // Walk the line from its single root.
+    var next = {};
+    graph.edges.forEach(function (e) { next[e.source] = e.target; });
+    var orderList = [roots[0].id];
+    while (next[orderList[orderList.length - 1]]) {
+      orderList.push(next[orderList[orderList.length - 1]]);
+    }
+    if (orderList.length !== graph.nodes.length) return null;
+
+    var n = orderList.length;
+    var availW = env.width - PAD * 2;
+    var availH = (env.height || 0) - PAD * 2;
+    var maxRows = availH > 0 ? Math.max(1, Math.floor(availH / (CARD_H + SEP_Y))) : 1;
+    var rows = 0, cols = 0;
+    for (var r = 1; r <= maxRows; r++) {
+      cols = Math.ceil(n / r);
+      if (cols * (CARD_W + SEP_X) - SEP_X <= availW) { rows = r; break; }
+    }
+    if (!rows) { rows = maxRows; cols = Math.ceil(n / rows); }  // fit shrinks
+
+    var positions = {};
+    orderList.forEach(function (id, s) {
+      var row = Math.floor(s / cols), col = s % cols;
+      if (row % 2 === 1) col = cols - 1 - col;   // boustrophedon: snake back
+      positions[id] = {
+        x: PAD + col * (CARD_W + SEP_X) + CARD_W / 2,
+        y: PAD + row * (CARD_H + SEP_Y) + CARD_H / 2
+      };
+    });
+    // fit:false + no zoom: the coordinates are built for zoom 1 inside the
+    // viewport, top-left anchored -- preset must not upscale a short chain.
+    return { name: "preset", positions: positions, fit: false, animate: false };
+  }
+
+  /**
+   * Snake for linear chains (env = the mounted viewport's pixel size);
+   * dagre left-to-right for branched graphs or pre-attach (no measurement
+   * yet), where fit:true scales the whole picture to the box.
+   */
+  function graphLayout(graph, env) {
+    var snake = snakeLayout(graph, env);
+    if (snake) return snake;
     return {
-      name: "dagre",
-      rankDir: "LR",
-      nodeSep: 30,
-      rankSep: 90,
-      animate: false,
-      fit: true
+      name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 80,
+      animate: false, fit: true
     };
   }
 
+  var COLORS = {
+    FILL: FILL, LABEL: LABEL,
+    ANCESTRY_BORDER: ANCESTRY_BORDER, ACTIVITY_BORDER: ACTIVITY_BORDER,
+    NET_BORDER: NET_BORDER, EDGE_COLOR: EDGE_COLOR, SELECT_COLOR: SELECT_COLOR
+  };
+
   var model = {
     isActivity: isActivity,
+    isConnectionStage: isConnectionStage,
+    ellipsize: ellipsize,
+    kindText: kindText,
+    cardLabel: cardLabel,
     toGraph: toGraph,
     toElements: toElements,
     graphStyle: graphStyle,
     graphLayout: graphLayout,
-    COLORS: {
-      NEUTRAL_FILL: NEUTRAL_FILL, NEUTRAL_BORDER: NEUTRAL_BORDER,
-      ACTIVITY_FILL: ACTIVITY_FILL, ACTIVITY_BORDER: ACTIVITY_BORDER,
-      EDGE_COLOR: EDGE_COLOR, SELECT_COLOR: SELECT_COLOR
-    }
+    snakeLayout: snakeLayout,
+    CARD_W: CARD_W,
+    COLORS: COLORS
   };
 
   if (typeof module !== "undefined" && module && module.exports) {

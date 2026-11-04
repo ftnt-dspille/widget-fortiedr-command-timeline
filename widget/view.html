@@ -11,9 +11,9 @@
      order (the graph resolves the model at call time, not load time).
      Path prefix is <name>-<version>/widgetAssets/...; `widget bump` rewrites the
      version segment (lint `stale-version-ref` flags a mismatch). -->
-<script src="fortiedrCommandTimeline-1.1.0/widgetAssets/js/graph-bundle.js"></script>
-<script src="fortiedrCommandTimeline-1.1.0/widgetAssets/js/timelineModel.js"></script>
-<script src="fortiedrCommandTimeline-1.1.0/widgetAssets/js/timelineGraph.js"></script>
+<script src="fortiedrCommandTimeline-1.2.0/widgetAssets/js/graph-bundle.js"></script>
+<script src="fortiedrCommandTimeline-1.2.0/widgetAssets/js/timelineModel.js"></script>
+<script src="fortiedrCommandTimeline-1.2.0/widgetAssets/js/timelineGraph.js"></script>
 <div class="fortiedr-command-timeline" data-testid="fortiedr-command-timeline-root">
   <style>
     /* Scoped to the widget root; no external CSS asset to ship. */
@@ -46,8 +46,9 @@
       display: inline-block; width: 10px; height: 10px; border-radius: 3px;
       vertical-align: -1px; margin-right: 5px;
     }
-    .fortiedr-command-timeline .fctl-dot-activity { background: #c2413b; }
-    .fortiedr-command-timeline .fctl-dot-ancestry { background: #4b5563; }
+    .fortiedr-command-timeline .fctl-dot-activity { background: #e5484d; }
+    .fortiedr-command-timeline .fctl-dot-ancestry { background: #64748b; }
+    .fortiedr-command-timeline .fctl-dot-net { background: #3b82f6; }
     .fortiedr-command-timeline .fctl-legend .fctl-dim { opacity: 0.7; }
     /* The tapped node's detail: same card language the rail used. */
     .fortiedr-command-timeline .fctl-detail {
@@ -69,6 +70,11 @@
     .fortiedr-command-timeline .fctl-kinds {
       font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase;
       opacity: 0.8; margin: 0 0 6px 0;
+    }
+    .fortiedr-command-timeline .fctl-netfacts {
+      font-size: 12px; margin: 0 0 8px 0; padding: 6px 8px;
+      border-radius: 4px; background: rgba(59, 130, 246, 0.12);
+      word-break: break-all;
     }
     .fortiedr-command-timeline .fctl-card {
       border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 6px;
@@ -147,7 +153,8 @@
     <div class="fctl-legend" data-ng-if="!graphEmpty"
          data-testid="fortiedr-command-timeline-legend">
       <span><span class="fctl-dot fctl-dot-ancestry"></span>ancestry</span>
-      <span><span class="fctl-dot fctl-dot-activity"></span>activity (threads, handles, credentials, connections)</span>
+      <span><span class="fctl-dot fctl-dot-activity"></span>activity</span>
+      <span><span class="fctl-dot fctl-dot-net"></span>internet host</span>
       <span class="fctl-dim">tap a node for its stages and command lines</span>
     </div>
 
@@ -172,8 +179,17 @@
                 data-testid="fortiedr-command-timeline-detail-close"
                 aria-label="Close node detail">&times;</button>
       </div>
-      <div class="fctl-kinds" data-ng-if="selected.kinds.length">
+      <div class="fctl-kinds" data-ng-if="selected.kinds.length && !selected.net">
         {{ selected.kinds.join(', ') }}
+      </div>
+      <!-- the internet host's own facts, then the command that reached out -->
+      <div class="fctl-netfacts" data-ng-if="selected.net"
+           data-testid="fortiedr-command-timeline-net-facts">
+        IP {{ selected.net.ip }}
+        <span data-ng-if="selected.net.asn"> &middot; AS {{ selected.net.asn }}</span>
+        <span data-ng-if="selected.net.country"> &middot; {{ selected.net.country }}</span>
+        <span data-ng-if="selected.net.remoteUrl"> &middot; {{ selected.net.remoteUrl }}</span>
+        <span data-ng-if="selected.net.action"> &middot; {{ selected.net.action }}</span>
       </div>
       <div class="fctl-card" data-ng-repeat="s in selected.stages"
            data-testid="fortiedr-command-timeline-stage">

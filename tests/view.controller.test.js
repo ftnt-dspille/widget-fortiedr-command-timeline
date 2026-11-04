@@ -19,13 +19,14 @@ const graphModel = require("../widget/widgetAssets/js/timelineGraph.js");
 angular.module("cybersponse", []); // eslint-disable-line no-undef
 require("../widget/view.controller.js");
 
-const CTRL_NAME = "fortiedrCommandTimeline110DevCtrl";
+const CTRL_NAME = "fortiedrCommandTimeline120DevCtrl";
 const ngModule = window.angular.mock.module; // eslint-disable-line no-undef
 const ngInject = window.angular.mock.inject; // eslint-disable-line no-undef
 
 // A sourcedata payload as the fortinet-fortiedrv2 connector stores it.
 // Two processes: sudo (pid 5302) spawned bash (pid 5304); the bash stage is
-// "PROCESS ACTIVITY", so the graph must flag it as the activity node.
+// the CONNECTION STACK, so the graph anchors the event's internet host
+// (1.1.1.1, AS 13335 CLOUDFLARENET) there.
 function sourcedata(over) {
   return JSON.stringify(Object.assign({
     name: "bash - Malicious Application on lab-endpoint-01",
@@ -36,6 +37,9 @@ function sourcedata(over) {
       eventId: 694297391,
       host: "lab-endpoint-01",
       os: "Ubuntu 24.04.4 LTS",
+      destination: "1.1.1.1",
+      remoteIP: "1.1.1.1",
+      asn: "13335 CLOUDFLARENET",
       firstSeenEpoch: 1793725982000,
       lastSeenEpoch: 1793725982000,
       eventCount: 1,
@@ -44,7 +48,7 @@ function sourcedata(over) {
           sourceProcessPath: "/usr/bin/sudo", processId: "5302", auxProcessId: "5304",
           certificateStatus: "Unsigned", timestamp: 1793725330000,
           commandLine: "bash /tmp/edr_lab.sh all", stackEntries: [] },
-        { stageName: "PROCESS ACTIVITY", shortSourceProcessName: "bash",
+        { stageName: "CONNECTION STACK", shortSourceProcessName: "bash",
           sourceProcessPath: "/usr/bin/bash", processId: "5304",
           certificateStatus: "Unsigned", timestamp: 1793725331000,
           commandLine: "6 bash -c exec 3<>/dev/tcp/1.1.1.1/443", stackEntries: [] },
@@ -73,7 +77,10 @@ function mockCytoscape() {
       destroyed: false,
       resize: function () { return this; },
       fit: function () { return this; },
+      // selection API the controller drives for the highlight ring
+      $: function () { return { unselect: function () { inst.unselected = true; } }; },
     };
+    inst.unselected = false;
     calls.push(inst);
     return inst;
   };
@@ -159,20 +166,60 @@ describe("fortiedrCommandTimeline view controller", () => {
     expect(ctl.$scope.event.host).toBe("lab-endpoint-01");
     expect(ctl.$scope.graphEmpty).toBe(false);
 
-    // The graph: 2 nodes (sudo -> bash), 1 edge, dagre left-to-right.
+    // The graph: sudo -> bash -> internet host. jsdom gives the container no
+    // measurable width, so the snake declines and dagre lays it out.
     expect(ctl.cytoscape.calls.length).toBe(1);
     const opts = ctl.cytoscape.calls[0].opts;
     expect(opts.container.id).toBe("fctl-cy");
     expect(opts.layout).toMatchObject({ name: "dagre", rankDir: "LR" });
-    expect(opts.elements.nodes.map((n) => n.data.id)).toEqual(["5302", "5304"]);
+    expect(opts.elements.nodes.map((n) => n.data.id)).toEqual(
+      ["5302", "5304", "net:1.1.1.1"]);
     expect(opts.elements.edges).toEqual([
-      { data: { id: "e0", source: "5302", target: "5304" } },
+      { data: { id: "e0", source: "5302", target: "5304", net: false } },
+      { data: { id: "e1", source: "5304", target: "net:1.1.1.1", net: true } },
     ]);
-    // Labels carry the PID so repeated names are distinguishable.
-    expect(opts.elements.nodes[1].data.label).toBe("bash\nPID 5304");
-    // The activity stage colors its node.
-    expect(opts.elements.nodes[1].data.activity).toBe(true);
-    expect(opts.elements.nodes[0].data.activity).toBe(false);
+    // Cards: name + PID, the kind an activity node committed, its command.
+    expect(opts.elements.nodes[1].data.label).toBe(
+      "bash\nPID 5304\nCONNECTION STACK\n6 bash -c exec 3<>/dev/tcp/1.1.1.1/443");
+    expect(opts.elements.nodes[0].data.label).toBe(
+      "sudo\nPID 5302\nbash /tmp/edr_lab.sh all");
+    // The internet host card carries the API's own triple.
+    expect(opts.elements.nodes[2].data.label).toBe(
+      "Internet host\n1.1.1.1\nAS 13335 CLOUDFLARENET");
+    expect(opts.elements.nodes[2].data.net).toBe(true);
+    // Border color carries the meaning: slate ancestry, red activity, blue net.
+    expect(opts.elements.nodes[0].data.color).toBe(graphModel.COLORS.ANCESTRY_BORDER);
+    expect(opts.elements.nodes[1].data.color).toBe(graphModel.COLORS.ACTIVITY_BORDER);
+    expect(opts.elements.nodes[2].data.color).toBe(graphModel.COLORS.NET_BORDER);
+  });
+
+  test("the record's action renders on the net card when the connector stores it", () => {
+    const rec = { name: "x", action: "Block", sourcedata: sourcedata() };
+    const ctl = readyController({}, rec);
+    const net = ctl.cytoscape.calls[0].opts.elements.nodes
+      .find((n) => n.data.id === "net:1.1.1.1");
+    expect(net.data.label).toBe("Internet host (Block)\n1.1.1.1\nAS 13335 CLOUDFLARENET");
+    // And a record without the field renders no action, never a guess.
+    withGraphContainer(() => {
+      ctl.spawn({ name: "x", sourcedata: sourcedata() });
+      ctl.flush();
+    });
+    const net2 = ctl.cytoscape.calls[1].opts.elements.nodes
+      .find((n) => n.data.id === "net:1.1.1.1");
+    expect(net2.data.label).toBe("Internet host\n1.1.1.1\nAS 13335 CLOUDFLARENET");
+  });
+
+  test("tapping the internet host opens its facts and the command that reached out", () => {
+    const rec = { name: "x", sourcedata: sourcedata() };
+    const ctl = readyController({}, rec);
+    const inst = ctl.cytoscape.calls[0];
+    inst.handlers["tap:sel"]({ target: { id: () => "net:1.1.1.1", select: () => {} } });
+    expect(ctl.$scope.selected.net).toEqual({
+      ip: "1.1.1.1", asn: "13335 CLOUDFLARENET", country: "",
+      remoteUrl: "", action: "",
+    });
+    // The net node's stages ARE the connection stages: the exact command.
+    expect(ctl.$scope.selected.stages[0].command).toContain("/dev/tcp/1.1.1.1/443");
   });
 
   test("registers cytoscape-dagre once, defensively (the flag lives on the fn)", () => {
@@ -197,18 +244,19 @@ describe("fortiedrCommandTimeline view controller", () => {
     const nodeTap = inst.handlers["tap:sel"];   // registered with the node selector
     const bgTap = inst.handlers.tap;            // registered bare (background)
 
-    nodeTap({ target: { id: () => "5304" } });
+    nodeTap({ target: { id: () => "5304", select: () => {} } });
     expect(ctl.$scope.selected).not.toBeNull();
-    expect(ctl.$scope.selected.label).toBe("bash\nPID 5304");
+    expect(ctl.$scope.selected.name).toBe("bash");
     expect(ctl.$scope.selected.stages[0].command).toContain("/dev/tcp/1.1.1.1/443");
 
     ctl.$scope.closeDetail();
     expect(ctl.$scope.selected).toBeNull();
 
-    nodeTap({ target: { id: () => "5302" } });
+    nodeTap({ target: { id: () => "5302", select: () => {} } });
     expect(ctl.$scope.selected.pid).toBe("5302");
     bgTap.call(inst, { target: inst });         // background tap: target === cy
     expect(ctl.$scope.selected).toBeNull();
+    expect(inst.unselected).toBe(true);         // the highlight ring clears
   });
 
   test("$destroy tears down the LIVE graph instance", () => {
