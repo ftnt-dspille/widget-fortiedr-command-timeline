@@ -18,7 +18,7 @@ const model = require("../widget/widgetAssets/js/timelineModel.js");
 angular.module("cybersponse", []); // eslint-disable-line no-undef
 require("../widget/view.controller.js");
 
-const CTRL_NAME = "fortiedrCommandTimeline100DevCtrl";
+const CTRL_NAME = "fortiedrCommandTimeline101DevCtrl";
 const ngModule = window.angular.mock.module; // eslint-disable-line no-undef
 const ngInject = window.angular.mock.inject; // eslint-disable-line no-undef
 

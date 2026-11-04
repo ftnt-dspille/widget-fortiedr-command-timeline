@@ -4,18 +4,18 @@
    Copyright end */
 "use strict";
 // VIEW controller. The harness/SOAR resolves the controller name as
-// `<name><numericVersion>DevCtrl` -- fortiedrCommandTimeline100DevCtrl for
+// `<name><numericVersion>DevCtrl` -- fortiedrCommandTimeline101DevCtrl for
 // fortiedrCommandTimeline v1.0.0. `widget bump` rewrites this suffix on a
 // version change; never hand-edit it.
 (function () {
   angular
     .module("cybersponse")
-    .controller("fortiedrCommandTimeline100DevCtrl", fortiedrCommandTimeline100DevCtrl);
+    .controller("fortiedrCommandTimeline101DevCtrl", fortiedrCommandTimeline101DevCtrl);
 
-  fortiedrCommandTimeline100DevCtrl.$inject =
+  fortiedrCommandTimeline101DevCtrl.$inject =
     ["$scope", "config", "FormEntityService", "$http", "$window", "$state"];
 
-  function fortiedrCommandTimeline100DevCtrl($scope, config, FormEntityService, $http, $window, $state) {
+  function fortiedrCommandTimeline101DevCtrl($scope, config, FormEntityService, $http, $window, $state) {
     var m = $window.fortiedrCommandTimelineModel;
     var FETCH_TIMEOUT_MS = 8000;
 

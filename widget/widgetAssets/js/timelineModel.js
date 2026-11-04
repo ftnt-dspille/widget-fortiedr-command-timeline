@@ -63,6 +63,32 @@
       " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
   }
 
+  // Plausible absolute epoch for a process-creation stamp: 2001-01-01 through
+  // 2090-01-01. Stage timestamps are NOT a stable unit across sensors --
+  // live-proven on the box: a Linux event's stages carry true epoch-ms
+  // (1.79e12) while a Windows event's stages carried ~4.1e9, which is
+  // neither a plausible epoch-ms nor a plausible epoch-second (that would be
+  // the year 2098). Only a value that decodes to a sane wall-clock date may
+  // render as one; everything else renders no time but still orders by its
+  // raw value (the chain order is what the timeline is for).
+  var MS_MIN = 978307200000;   // 2001-01-01
+  var MS_MAX = 4102444800000;  // 2090-01-01
+  var S_MIN = 978307200;       // same span, in seconds
+  var S_MAX = 3786912000;
+  function plausibleEpochMs(n) { return n >= MS_MIN && n <= MS_MAX; }
+
+  function stageTime(ts) {
+    if (ts === null || ts === undefined || ts === "") return "";
+    var n = Number(ts);
+    if (isNaN(n)) return "";
+    if (plausibleEpochMs(n)) return fmtTime(n);
+    // epoch-seconds shape (2001..2090): render as its ms equivalent. The
+    // bound matters: the live Windows sensor's relative stamps (~4.1e9) sit
+    // just above it -- rendered as seconds they would claim the year 2098.
+    if (n >= S_MIN && n <= S_MAX) return fmtTime(n * 1000);
+    return "";
+  }
+
   // "\Device\HarddiskVolume3\Windows\explorer.exe" -> "explorer.exe"
   function baseName(path) {
     if (typeof path !== "string" || !path) return "";
@@ -103,7 +129,7 @@
         cert: s.certificateStatus || "",
         bits: s.is64Bit ? "64-bit" : "",
         owner: s.sourceProcessOwner || "",
-        time: fmtTime(s.timestamp),
+        time: stageTime(s.timestamp),
         // A stage without a usable stamp sorts LAST (after the real chain),
         // never first: Number(null) is 0 and would float junk above the
         // parent process. NaN strings poison a sort, so they land here too.
@@ -125,8 +151,10 @@
       destination: timeline.destination || "",
       remoteIP: timeline.remoteIP || "",
       asn: timeline.asn || "",
-      firstSeen: fmtTime(timeline.firstSeenEpoch) || timeline.firstSeen || "",
-      lastSeen: fmtTime(timeline.lastSeenEpoch) || timeline.lastSeen || "",
+      // Same plausibility gate as stages; falls back to the console's own
+      // stamp strings when the epochs do not decode to a sane date.
+      firstSeen: stageTime(timeline.firstSeenEpoch) || timeline.firstSeen || "",
+      lastSeen: stageTime(timeline.lastSeenEpoch) || timeline.lastSeen || "",
       eventCount: timeline.eventCount !== undefined && timeline.eventCount !== null
         ? String(timeline.eventCount) : ""
     };
@@ -136,6 +164,7 @@
     parseSourcedata: parseSourcedata,
     extractTimeline: extractTimeline,
     fmtTime: fmtTime,
+    stageTime: stageTime,
     baseName: baseName,
     buildStages: buildStages,
     buildEvent: buildEvent

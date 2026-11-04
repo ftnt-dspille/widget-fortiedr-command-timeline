@@ -158,6 +158,26 @@ describe("buildStages", () => {
   });
 });
 
+describe("stageTime", () => {
+  test("renders a plausible epoch-ms stamp", () => {
+    expect(m.stageTime(1793725330000)).toMatch(/^\d{2}-[A-Z][a-z]{2}-\d{4} /);
+  });
+  test("renders an epoch-seconds stamp as its ms equivalent", () => {
+    expect(m.stageTime(1793725330)).toBe(m.fmtTime(1793725330000));
+  });
+  test("a sensor-relative stamp renders NO time (live-caught: ~4.1e9 on the Rozena chain)", () => {
+    // The Windows sensor's stage stamps are neither plausible epoch-ms nor
+    // plausible epoch-seconds (as seconds they would claim the year 2098).
+    expect(m.stageTime(4062960528)).toBe("");
+    expect(m.stageTime(4148309287)).toBe("");
+  });
+  test("blank and non-numeric render empty", () => {
+    expect(m.stageTime(null)).toBe("");
+    expect(m.stageTime("")).toBe("");
+    expect(m.stageTime("junk")).toBe("");
+  });
+});
+
 describe("buildEvent", () => {
   test("renders the header scalars", () => {
     const e = m.buildEvent(rawTimeline());

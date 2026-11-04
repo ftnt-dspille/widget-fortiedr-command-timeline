@@ -8,14 +8,14 @@
 (function () {
   angular
     .module("cybersponse")
-    .controller("editFortiedrCommandTimeline100DevCtrl", editFortiedrCommandTimeline100DevCtrl);
+    .controller("editFortiedrCommandTimeline101DevCtrl", editFortiedrCommandTimeline101DevCtrl);
 
   // `config` is the SAVED config, injected -- not handed over on $scope. Without
   // it the editor shows stale defaults every time it reopens and closes the
   // modal with a fresh object, silently discarding the user's saved choices.
-  editFortiedrCommandTimeline100DevCtrl.$inject = ["$scope", "$uibModalInstance", "config"];
+  editFortiedrCommandTimeline101DevCtrl.$inject = ["$scope", "$uibModalInstance", "config"];
 
-  function editFortiedrCommandTimeline100DevCtrl($scope, $uibModalInstance, config) {
+  function editFortiedrCommandTimeline101DevCtrl($scope, $uibModalInstance, config) {
     var defaults = {
       title: "FortiEDR Command Timeline",
       showModules: true
