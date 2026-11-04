@@ -1,9 +1,19 @@
 <!-- VIEW template. Do NOT put data-ng-controller on the root here -- the harness
      (and SOAR after publish) wraps the widget with its own ng-controller; a
      second one creates a dead parallel scope. See KNOWLEDGEBASE.md §widget gotchas. -->
-<!-- Vendored pure model. The path prefix is <name>-<version>/widgetAssets/...;
-     `widget bump` rewrites the version segment (lint `stale-version-ref`). -->
-<script src="fortiedrCommandTimeline-1.0.1/widgetAssets/js/timelineModel.js"></script>
+<!-- Vendored graph stack. dagre + cytoscape + cytoscape-dagre are bundled into
+     ONE file (graph-bundle.js) because FortiSOAR auto-injects widgetAssets JS in
+     PARALLEL and executes each on arrival -- NOT document/lexical order -- so
+     per-file numeric prefixes can't order three UMD libs. Bundling makes the
+     order intrinsic; the bundle's prelude disables window.define (AMD/RequireJS)
+     so each UMD lib takes its global branch and attaches window.cytoscape.
+     timelineModel.js/timelineGraph.js are pure globals that tolerate ANY load
+     order (the graph resolves the model at call time, not load time).
+     Path prefix is <name>-<version>/widgetAssets/...; `widget bump` rewrites the
+     version segment (lint `stale-version-ref` flags a mismatch). -->
+<script src="fortiedrCommandTimeline-1.1.0/widgetAssets/js/graph-bundle.js"></script>
+<script src="fortiedrCommandTimeline-1.1.0/widgetAssets/js/timelineModel.js"></script>
+<script src="fortiedrCommandTimeline-1.1.0/widgetAssets/js/timelineGraph.js"></script>
 <div class="fortiedr-command-timeline" data-testid="fortiedr-command-timeline-root">
   <style>
     /* Scoped to the widget root; no external CSS asset to ship. */
@@ -19,25 +29,53 @@
       display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0 0;
       font-size: 12px; opacity: 0.9;
     }
-    .fortiedr-command-timeline .fctl-rail {
-      list-style: none; margin: 12px 0 0 0; padding: 0 0 0 18px;
-      position: relative;
+    /* The canvas owns a FIXED dark surface: the node fills are mid-dark with
+       white labels, which must read the same on a light or a dark panel. */
+    .fortiedr-command-timeline .fctl-graphwrap {
+      margin: 10px 0 0 0; border: 1px solid rgba(127, 127, 127, 0.35);
+      border-radius: 6px; overflow: hidden; background: #23272f;
     }
-    .fortiedr-command-timeline .fctl-rail::before {
-      content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px;
-      width: 2px; background: currentColor; opacity: 0.18;
+    .fortiedr-command-timeline .fctl-cy {
+      width: 100%; height: 100%; min-height: 120px;
     }
-    .fortiedr-command-timeline .fctl-stage { position: relative; padding: 0 0 14px 14px; }
-    .fortiedr-command-timeline .fctl-stage:last-child { padding-bottom: 2px; }
-    .fortiedr-command-timeline .fctl-dot {
-      position: absolute; left: -18px; top: 4px; width: 10px; height: 10px;
-      border-radius: 50%; background: currentColor; opacity: 0.55;
-      box-shadow: 0 0 0 3px rgba(127, 127, 127, 0.15);
+    .fortiedr-command-timeline .fctl-legend {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px;
+      font-size: 11px; opacity: 0.85; margin: 8px 2px 0 2px;
+    }
+    .fortiedr-command-timeline .fctl-legend .fctl-dot {
+      display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+      vertical-align: -1px; margin-right: 5px;
+    }
+    .fortiedr-command-timeline .fctl-dot-activity { background: #c2413b; }
+    .fortiedr-command-timeline .fctl-dot-ancestry { background: #4b5563; }
+    .fortiedr-command-timeline .fctl-legend .fctl-dim { opacity: 0.7; }
+    /* The tapped node's detail: same card language the rail used. */
+    .fortiedr-command-timeline .fctl-detail {
+      margin: 10px 0 0 0; border: 1px solid rgba(34, 211, 238, 0.55);
+      border-radius: 6px; background: rgba(34, 211, 238, 0.06);
+      padding: 8px 10px;
+    }
+    .fortiedr-command-timeline .fctl-detail-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px; margin-bottom: 6px;
+    }
+    .fortiedr-command-timeline .fctl-detail-name {
+      font-weight: 700; font-size: 13px; word-break: break-all;
+    }
+    .fortiedr-command-timeline .fctl-detail-close {
+      border: none; background: none; color: inherit; opacity: 0.7;
+      font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px;
+    }
+    .fortiedr-command-timeline .fctl-kinds {
+      font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase;
+      opacity: 0.8; margin: 0 0 6px 0;
     }
     .fortiedr-command-timeline .fctl-card {
       border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 6px;
       padding: 8px 10px; background: rgba(127, 127, 127, 0.06);
+      margin: 0 0 8px 0;
     }
+    .fortiedr-command-timeline .fctl-card:last-child { margin-bottom: 0; }
     .fortiedr-command-timeline .fctl-stage-head {
       display: flex; justify-content: space-between; gap: 8px;
       font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
@@ -81,7 +119,7 @@
     .fortiedr-command-timeline .fctl-state-err { color: #b02a37; }
   </style>
 
-  <!-- ready: the event header + the chronological stage rail -->
+  <!-- ready: the event header + the spawn graph -->
   <div data-ng-if="state === 'ready'" data-testid="fortiedr-command-timeline-ready">
     <div class="fctl-head">
       <h3 class="fctl-title" data-testid="fortiedr-command-timeline-record-name">{{ recordName }}</h3>
@@ -100,42 +138,69 @@
         </span>
       </div>
     </div>
-    <ol class="fctl-rail" data-ng-if="stages.length" data-testid="fortiedr-command-timeline-stages">
-      <li class="fctl-stage" data-ng-repeat="s in stages"
-          data-testid="fortiedr-command-timeline-stage">
-        <span class="fctl-dot"></span>
-        <div class="fctl-card">
-          <div class="fctl-stage-head">
-            <span>{{ s.stage || 'Process stage' }}</span>
-            <span>{{ s.time }}</span>
-          </div>
-          <div class="fctl-process">
-            <span data-testid="fortiedr-command-timeline-process">{{ s.process }}</span>
-            <span class="fctl-chip" data-ng-if="s.pid">PID {{ s.pid }}</span>
-            <span class="fctl-chip fctl-dim" data-ng-if="s.auxPid">child PID {{ s.auxPid }}</span>
-            <span class="fctl-chip {{ s.cert === 'Unsigned' ? 'fctl-chip-unsigned' : (s.cert === 'Signed' ? 'fctl-chip-signed' : '') }}"
-                  data-ng-if="s.cert">{{ s.cert }}</span>
-            <span class="fctl-chip fctl-dim" data-ng-if="s.bits">{{ s.bits }}</span>
-          </div>
-          <div class="fctl-path" data-ng-if="s.path && s.path !== s.process">{{ s.path }}</div>
-          <div class="fctl-command" data-ng-if="s.command"
-               data-testid="fortiedr-command-timeline-command">{{ s.command }}</div>
-          <ul class="fctl-modules" data-ng-if="config.showModules && s.modules.length">
-            <li data-ng-repeat="mod in s.modules">
-              {{ mod.path || mod.name }}
-              <span data-ng-if="mod.cert"> &middot; {{ mod.cert }}</span>
-              <span data-ng-if="mod.writable"> &middot; writable: {{ mod.writable }}</span>
-              <span data-ng-if="mod.hash"> &middot; {{ mod.hash }}</span>
-            </li>
-          </ul>
-        </div>
-      </li>
-    </ol>
-    <div class="fctl-state" data-ng-if="state === 'ready' && !stages.length"
+
+    <div class="fctl-graphwrap" data-ng-if="!graphEmpty"
+         data-ng-style="{ height: graphHeightPx }"
+         data-testid="fortiedr-command-timeline-graph">
+      <div id="fctl-cy" class="fctl-cy"></div>
+    </div>
+    <div class="fctl-legend" data-ng-if="!graphEmpty"
+         data-testid="fortiedr-command-timeline-legend">
+      <span><span class="fctl-dot fctl-dot-ancestry"></span>ancestry</span>
+      <span><span class="fctl-dot fctl-dot-activity"></span>activity (threads, handles, credentials, connections)</span>
+      <span class="fctl-dim">tap a node for its stages and command lines</span>
+    </div>
+
+    <!-- a timeline with an empty stacks list: header is real, graph is not -->
+    <div class="fctl-state" data-ng-if="state === 'ready' && graphEmpty"
          data-testid="fortiedr-command-timeline-no-stages">
       The console holds no process timeline for this event (its stacks list
       was empty when the alert was enriched). The event header above is what
       FortiEDR stored.
+    </div>
+
+    <!-- the tapped node: every stage that process ran, chronologically -->
+    <div class="fctl-detail" data-ng-if="selected"
+         data-testid="fortiedr-command-timeline-detail">
+      <div class="fctl-detail-head">
+        <span class="fctl-detail-name" data-testid="fortiedr-command-timeline-detail-name">
+          {{ selected.label.split('\n')[0] }}
+          <span class="fctl-dim" data-ng-if="selected.pid">&middot; PID {{ selected.pid }}</span>
+        </span>
+        <button type="button" class="fctl-detail-close"
+                data-ng-click="closeDetail()"
+                data-testid="fortiedr-command-timeline-detail-close"
+                aria-label="Close node detail">&times;</button>
+      </div>
+      <div class="fctl-kinds" data-ng-if="selected.kinds.length">
+        {{ selected.kinds.join(', ') }}
+      </div>
+      <div class="fctl-card" data-ng-repeat="s in selected.stages"
+           data-testid="fortiedr-command-timeline-stage">
+        <div class="fctl-stage-head">
+          <span>{{ s.stage || 'Process stage' }}</span>
+          <span>{{ s.time }}</span>
+        </div>
+        <div class="fctl-process">
+          <span data-testid="fortiedr-command-timeline-process">{{ s.process }}</span>
+          <span class="fctl-chip" data-ng-if="s.pid">PID {{ s.pid }}</span>
+          <span class="fctl-chip fctl-dim" data-ng-if="s.auxPid">child PID {{ s.auxPid }}</span>
+          <span class="fctl-chip {{ s.cert === 'Unsigned' ? 'fctl-chip-unsigned' : (s.cert === 'Signed' ? 'fctl-chip-signed' : '') }}"
+                data-ng-if="s.cert">{{ s.cert }}</span>
+          <span class="fctl-chip fctl-dim" data-ng-if="s.bits">{{ s.bits }}</span>
+        </div>
+        <div class="fctl-path" data-ng-if="s.path && s.path !== s.process">{{ s.path }}</div>
+        <div class="fctl-command" data-ng-if="s.command"
+             data-testid="fortiedr-command-timeline-command">{{ s.command }}</div>
+        <ul class="fctl-modules" data-ng-if="config.showModules && s.modules.length">
+          <li data-ng-repeat="mod in s.modules">
+            {{ mod.path || mod.name }}
+            <span data-ng-if="mod.cert"> &middot; {{ mod.cert }}</span>
+            <span data-ng-if="mod.writable"> &middot; writable: {{ mod.writable }}</span>
+            <span data-ng-if="mod.hash"> &middot; {{ mod.hash }}</span>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 
