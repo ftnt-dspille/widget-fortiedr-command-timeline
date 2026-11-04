@@ -1,0 +1,36 @@
+<!-- EDIT template -- the config editor. The host opens it as a $uibModal: the
+     modal-header/body/footer shell and the Save/Cancel buttons ARE the close
+     contract (lint: edit-modal-shell, edit-modal-no-save). Bind to object
+     properties (config.X), never bare words: ng-include/ng-if/ng-repeat create
+     child scopes and a bare ng-model write shadows the parent. -->
+<form class="fortiedr-command-timeline-edit" data-ng-submit="save()">
+  <div class="modal-header">
+    <h4 class="modal-title">FortiEDR Command Timeline</h4>
+  </div>
+
+  <div class="modal-body">
+    <div class="form-group">
+      <label for="fortiedr-command-timeline-title" class="control-label">Title</label>
+      <input id="fortiedr-command-timeline-title" type="text" class="form-control"
+             data-testid="fortiedr-command-timeline-cfg-title"
+             data-ng-model="config.title" />
+    </div>
+
+    <div class="form-group">
+      <div class="checkbox">
+        <label for="fortiedr-command-timeline-modules">
+          <input id="fortiedr-command-timeline-modules" type="checkbox"
+                 data-testid="fortiedr-command-timeline-cfg-modules"
+                 data-ng-model="config.showModules" />
+          Show module frames under each stage
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-footer">
+    <button type="button" class="btn btn-default" data-ng-click="cancel()"
+            data-testid="fortiedr-command-timeline-cfg-cancel">Cancel</button>
+    <button type="submit" class="btn btn-primary" data-testid="fortiedr-command-timeline-cfg-save">Save</button>
+  </div>
+</form>

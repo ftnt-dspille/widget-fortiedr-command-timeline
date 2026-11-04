@@ -1,0 +1,27 @@
+{
+  "name": "fortiedrCommandTimeline",
+  "title": "FortiEDR Command Timeline",
+  "subTitle": "The process/cmd timeline behind a FortiEDR alert, rendered from the timeline stored in the alert's sourcedata.",
+  "version": "1.0.0",
+  "published_date": 1748908800,
+  "releaseNotes": "Initial release: renders the command timeline the fortinet-fortiedrv2 connector (1.1.12+) stores on an alert's sourcedata when its Include Command Timeline flag is on -- the chronological process/cmd stages behind the detection, with command lines, PIDs, certificate status and module frames.",
+  "development": true,
+  "metadata": {
+    "description": "Renders the process/cmd command timeline stored on a FortiEDR alert's sourcedata (command_timeline, written by the fortinet-fortiedrv2 connector's Include Command Timeline flag). Shows the event header (host, OS, destination, first/last seen) above a chronological rail of process stages: stage name, process path and PID, the command line, certificate status, and the module frames each stage loaded. Alerts ingested without the flag show how to enable it.",
+    "publisher": "Your Team",
+    "certified": "No",
+    "compatibility": [
+      "7.6.0"
+    ],
+    "snapshots": [],
+    "category": [
+      "Utilities"
+    ],
+    "pages": [
+      "View Panel"
+    ],
+    "standalone": false,
+    "windowClass": "Full Width",
+    "size": "lg"
+  }
+}

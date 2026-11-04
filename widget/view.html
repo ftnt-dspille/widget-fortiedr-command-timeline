@@ -1,0 +1,149 @@
+<!-- VIEW template. Do NOT put data-ng-controller on the root here -- the harness
+     (and SOAR after publish) wraps the widget with its own ng-controller; a
+     second one creates a dead parallel scope. See KNOWLEDGEBASE.md §widget gotchas. -->
+<!-- Vendored pure model. The path prefix is <name>-<version>/widgetAssets/...;
+     `widget bump` rewrites the version segment (lint `stale-version-ref`). -->
+<script src="fortiedrCommandTimeline-1.0.0/widgetAssets/js/timelineModel.js"></script>
+<div class="fortiedr-command-timeline" data-testid="fortiedr-command-timeline-root">
+  <style>
+    /* Scoped to the widget root; no external CSS asset to ship. */
+    .fortiedr-command-timeline { font-size: 13px; color: inherit; }
+    .fortiedr-command-timeline .fctl-head { margin: 0 0 10px 0; }
+    .fortiedr-command-timeline .fctl-title {
+      font-size: 15px; font-weight: 700; margin: 0 0 2px 0;
+    }
+    .fortiedr-command-timeline .fctl-sub {
+      color: inherit; opacity: 0.75; font-size: 12px; margin: 0;
+    }
+    .fortiedr-command-timeline .fctl-summary {
+      display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0 0;
+      font-size: 12px; opacity: 0.9;
+    }
+    .fortiedr-command-timeline .fctl-rail {
+      list-style: none; margin: 12px 0 0 0; padding: 0 0 0 18px;
+      position: relative;
+    }
+    .fortiedr-command-timeline .fctl-rail::before {
+      content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px;
+      width: 2px; background: currentColor; opacity: 0.18;
+    }
+    .fortiedr-command-timeline .fctl-stage { position: relative; padding: 0 0 14px 14px; }
+    .fortiedr-command-timeline .fctl-stage:last-child { padding-bottom: 2px; }
+    .fortiedr-command-timeline .fctl-dot {
+      position: absolute; left: -18px; top: 4px; width: 10px; height: 10px;
+      border-radius: 50%; background: currentColor; opacity: 0.55;
+      box-shadow: 0 0 0 3px rgba(127, 127, 127, 0.15);
+    }
+    .fortiedr-command-timeline .fctl-card {
+      border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 6px;
+      padding: 8px 10px; background: rgba(127, 127, 127, 0.06);
+    }
+    .fortiedr-command-timeline .fctl-stage-head {
+      display: flex; justify-content: space-between; gap: 8px;
+      font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+      opacity: 0.8; margin-bottom: 4px;
+    }
+    .fortiedr-command-timeline .fctl-process {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+      font-weight: 600; font-size: 13px;
+    }
+    .fortiedr-command-timeline .fctl-chip {
+      font-weight: 400; font-size: 11px; padding: 0 6px;
+      border-radius: 9px; border: 1px solid rgba(127, 127, 127, 0.4);
+      white-space: nowrap;
+    }
+    .fortiedr-command-timeline .fctl-chip-unsigned {
+      color: #b45f06; border-color: #b45f06;
+    }
+    .fortiedr-command-timeline .fctl-chip-signed { color: #1e7e34; border-color: #1e7e34; }
+    .fortiedr-command-timeline .fctl-path {
+      font-family: monospace; font-size: 12px; opacity: 0.85;
+      word-break: break-all; margin-top: 2px;
+    }
+    .fortiedr-command-timeline .fctl-command {
+      font-family: monospace; font-size: 12px; margin: 6px 0 0 0;
+      padding: 6px 8px; border-radius: 4px;
+      background: rgba(127, 127, 127, 0.12); word-break: break-all;
+      white-space: pre-wrap;
+    }
+    .fortiedr-command-timeline .fctl-modules {
+      list-style: none; margin: 8px 0 0 0; padding: 6px 0 0 0;
+      border-top: 1px dashed rgba(127, 127, 127, 0.3); font-size: 11px;
+    }
+    .fortiedr-command-timeline .fctl-modules li {
+      font-family: monospace; word-break: break-all; padding: 1px 0;
+    }
+    .fortiedr-command-timeline .fctl-dim { opacity: 0.6; }
+    .fortiedr-command-timeline .fctl-state {
+      padding: 14px 12px; border: 1px dashed rgba(127, 127, 127, 0.4);
+      border-radius: 6px; font-size: 12.5px;
+    }
+    .fortiedr-command-timeline .fctl-state-err { color: #b02a37; }
+  </style>
+
+  <!-- ready: the event header + the chronological stage rail -->
+  <div data-ng-if="state === 'ready'" data-testid="fortiedr-command-timeline-ready">
+    <div class="fctl-head">
+      <h3 class="fctl-title" data-testid="fortiedr-command-timeline-record-name">{{ recordName }}</h3>
+      <div class="fctl-summary" data-testid="fortiedr-command-timeline-event">
+        <span data-ng-if="event.host"><span class="fctl-dim">Host</span> {{ event.host }}</span>
+        <span data-ng-if="event.os">{{ event.os }}</span>
+        <span data-ng-if="event.destination"><span class="fctl-dim">To</span> {{ event.destination }}</span>
+        <span data-ng-if="event.remoteIP">{{ event.remoteIP }}</span>
+        <span data-ng-if="event.asn">{{ event.asn }}</span>
+        <span data-ng-if="event.firstSeen">
+          <span class="fctl-dim">{{ event.firstSeen }}</span>
+          <span data-ng-if="event.lastSeen && event.lastSeen !== event.firstSeen"> &rarr; {{ event.lastSeen }}</span>
+        </span>
+        <span data-ng-if="event.eventCount && event.eventCount !== '1'">
+          {{ event.eventCount }} events
+        </span>
+      </div>
+    </div>
+    <ol class="fctl-rail" data-testid="fortiedr-command-timeline-stages">
+      <li class="fctl-stage" data-ng-repeat="s in stages"
+          data-testid="fortiedr-command-timeline-stage">
+        <span class="fctl-dot"></span>
+        <div class="fctl-card">
+          <div class="fctl-stage-head">
+            <span>{{ s.stage || 'Process stage' }}</span>
+            <span>{{ s.time }}</span>
+          </div>
+          <div class="fctl-process">
+            <span data-testid="fortiedr-command-timeline-process">{{ s.process }}</span>
+            <span class="fctl-chip" data-ng-if="s.pid">PID {{ s.pid }}</span>
+            <span class="fctl-chip fctl-dim" data-ng-if="s.auxPid">child PID {{ s.auxPid }}</span>
+            <span class="fctl-chip {{ s.cert === 'Unsigned' ? 'fctl-chip-unsigned' : (s.cert === 'Signed' ? 'fctl-chip-signed' : '') }}"
+                  data-ng-if="s.cert">{{ s.cert }}</span>
+            <span class="fctl-chip fctl-dim" data-ng-if="s.bits">{{ s.bits }}</span>
+          </div>
+          <div class="fctl-path" data-ng-if="s.path && s.path !== s.process">{{ s.path }}</div>
+          <div class="fctl-command" data-ng-if="s.command"
+               data-testid="fortiedr-command-timeline-command">{{ s.command }}</div>
+          <ul class="fctl-modules" data-ng-if="config.showModules && s.modules.length">
+            <li data-ng-repeat="mod in s.modules">
+              {{ mod.path || mod.name }}
+              <span data-ng-if="mod.cert"> &middot; {{ mod.cert }}</span>
+              <span data-ng-if="mod.writable"> &middot; writable: {{ mod.writable }}</span>
+              <span data-ng-if="mod.hash"> &middot; {{ mod.hash }}</span>
+            </li>
+          </ul>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- states -->
+  <div data-ng-if="state === 'loading'" class="fctl-state" data-testid="fortiedr-command-timeline-loading">
+    Loading the command timeline&hellip;
+  </div>
+  <div data-ng-if="state === 'no-record'" class="fctl-state" data-testid="fortiedr-command-timeline-no-record">
+    No record loaded. Open an alert to see its command timeline.
+  </div>
+  <div data-ng-if="state === 'empty'" class="fctl-state" data-testid="fortiedr-command-timeline-empty">
+    {{ emptyHint }}
+  </div>
+  <div data-ng-if="state === 'error'" class="fctl-state fctl-state-err" data-testid="fortiedr-command-timeline-error">
+    {{ error }}
+  </div>
+</div>
