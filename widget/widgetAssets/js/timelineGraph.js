@@ -156,7 +156,7 @@
         selector: "node",
         style: {
           shape: "round-rectangle",
-          width: "label", height: 56,
+          width: "label", height: 62,
           "padding-left": "14px", "padding-right": "14px",
           "padding-top": "8px", "padding-bottom": "8px",
           "background-color": NEUTRAL_FILL,
