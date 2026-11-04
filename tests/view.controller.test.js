@@ -169,6 +169,23 @@ describe("fortiedrCommandTimeline view controller", () => {
     expect($scope.state).toBe("no-record");
   });
 
+  test("a stored timeline with no stages renders the header, not the flag hint", () => {
+    // Live-caught on the box: two Delete Shadow Copies events answer
+    // stacks: [] from the console, and the connector's empties-stripper
+    // drops the empty list -- command_timeline exists WITHOUT stacks. That
+    // is not the flag-off case; the hint must not tell the analyst to
+    // enable a flag that is already on.
+    const rec = { name: "Delete Shadow Copies - None on The-Flame",
+                  sourcedata: sourcedata({
+                    command_timeline: { eventId: 1492642, host: "The-Flame",
+                                        eventCount: 1 },
+                  }) };
+    const { $scope } = makeController({}, rec);
+    expect($scope.state).toBe("ready");
+    expect($scope.stages).toEqual([]);
+    expect($scope.event.host).toBe("The-Flame");
+  });
+
   test("showModules defaults on", () => {
     const rec = { name: "x", sourcedata: sourcedata() };
     expect(makeController({}, rec).$scope.config.showModules).toBe(true);

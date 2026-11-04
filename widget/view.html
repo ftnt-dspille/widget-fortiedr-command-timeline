@@ -100,7 +100,7 @@
         </span>
       </div>
     </div>
-    <ol class="fctl-rail" data-testid="fortiedr-command-timeline-stages">
+    <ol class="fctl-rail" data-ng-if="stages.length" data-testid="fortiedr-command-timeline-stages">
       <li class="fctl-stage" data-ng-repeat="s in stages"
           data-testid="fortiedr-command-timeline-stage">
         <span class="fctl-dot"></span>
@@ -131,6 +131,12 @@
         </div>
       </li>
     </ol>
+    <div class="fctl-state" data-ng-if="state === 'ready' && !stages.length"
+         data-testid="fortiedr-command-timeline-no-stages">
+      The console holds no process timeline for this event (its stacks list
+      was empty when the alert was enriched). The event header above is what
+      FortiEDR stored.
+    </div>
   </div>
 
   <!-- states -->

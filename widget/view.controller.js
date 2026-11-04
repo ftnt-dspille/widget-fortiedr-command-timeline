@@ -66,7 +66,11 @@
       }
       $scope.event = m.buildEvent(timeline);
       $scope.stages = m.buildStages(timeline);
-      $scope.state = $scope.stages.length ? "ready" : "empty";
+      // A stored timeline with no stages is NOT the flag-off case: the
+      // console returned an empty stacks list for this event (live-proven on
+      // the box: two Delete Shadow Copies events carry no stacks at all).
+      // The header still renders; the template shows a different note.
+      $scope.state = "ready";
     }
 
     function init() {
