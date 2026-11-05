@@ -369,6 +369,162 @@
     };
   }
 
+
+  // ---- storyline (the default view) ------------------------------------
+  //
+  // The same graph, read as a narrative: how the chain started, what the
+  // detection-relevant processes did, where it reached. Everything below is
+  // derived from the stored stages; nothing is invented.
+
+  // Tokens worth the analyst's eye inside a command line. Presentation only
+  // (nothing gates on these): IPs, temp-dir paths, and shell-socket paths.
+  var TOKEN_RE = new RegExp(
+    "(\\/dev\\/(?:tcp|udp)\\/[^\\s\"']*)" +                       // 1 socket path
+    "|(\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b(?::\\d+)?)" +              // 2 ip[:port]
+    "|((?:\\/tmp|\\/var\\/tmp|\\/dev\\/shm)\\/[^\\s\"';|&]*)" +    // 3 temp path
+    "|((?:[A-Za-z]:)?\\\\[^\\s\"']*\\\\(?:Temp|AppData)\\\\[^\\s\"']*)", "g"); // 4 win temp
+  var TOKEN_KIND = [null, "sock", "ip", "tmp", "tmp"];
+
+  /** Split a command line into [{ t: text, k: 'sock'|'ip'|'tmp'|'' }]. */
+  function tokenizeCommand(cmd) {
+    cmd = String(cmd || "");
+    var out = [], last = 0, m;
+    TOKEN_RE.lastIndex = 0;
+    while ((m = TOKEN_RE.exec(cmd)) !== null) {
+      if (m.index > last) out.push({ t: cmd.slice(last, m.index), k: "" });
+      var kind = "";
+      for (var i = 1; i <= 4; i++) { if (m[i]) { kind = TOKEN_KIND[i]; break; } }
+      out.push({ t: m[0], k: kind });
+      last = m.index + m[0].length;
+      if (m[0].length === 0) TOKEN_RE.lastIndex++;
+    }
+    if (last < cmd.length) out.push({ t: cmd.slice(last), k: "" });
+    return out;
+  }
+
+  // Short, factual call-outs for a process card.
+  function signalsFor(node) {
+    var sig = [];
+    if (!node || node.net) return sig;
+    var blob = [node.command].concat(node.stages.map(function (s) { return s.path; })).join(" ");
+    if (/\/dev\/(tcp|udp)\//.test(node.command)) sig.push("Opens a network socket from a shell");
+    if (/(^|[\s\/])(\/tmp|\/var\/tmp|\/dev\/shm)\//.test(blob) ||
+        /\\(Temp|AppData)\\/i.test(blob)) sig.push("Runs from a temporary location");
+    if (/^(sudo|su|runas|doas)(\.exe)?$/i.test(node.name)) sig.push("Privilege elevation");
+    node.stages.forEach(function (s) {
+      if (s.modules && s.modules.some(function (m) { return String(m.writable).toLowerCase() === "yes"; }) &&
+          sig.indexOf("Loads a writable module") === -1) sig.push("Loads a writable module");
+    });
+    return sig;
+  }
+
+  // Icon key for a card (mapped to CSS-mask SVGs in the template).
+  function iconFor(node) {
+    if (node.net) return "globe";
+    var n = String(node.name || "").toLowerCase().replace(/\.exe$/, "");
+    if (/^(bash|sh|zsh|dash|ksh|fish|cmd|powershell|pwsh)$/.test(n)) return "terminal";
+    if (/^(sudo|su|runas|doas)$/.test(n)) return "shield";
+    if (/^(sshd|ssh|rdp|mstsc|winrm)/.test(n)) return "key";
+    return "cube";
+  }
+
+  function fmtDelta(sec) {
+    if (!(sec >= 0) || !isFinite(sec)) return "";
+    if (sec < 1) return "same second";
+    if (sec < 60) return "+" + Math.round(sec) + "s";
+    if (sec < 3600) return "+" + Math.floor(sec / 60) + "m " + Math.round(sec % 60) + "s";
+    return "+" + Math.floor(sec / 3600) + "h " + Math.floor((sec % 3600) / 60) + "m";
+  }
+
+  // epoch (ms, plausible) of a node's first stage, or NaN when the sensor's
+  // stamps do not decode to a wall-clock date (same gate the stages use).
+  function nodeMs(node) {
+    var e = node.firstEpoch;
+    return (isFinite(e) && MODEL().stageTime(e)) ? (e >= 978307200000 ? e : e * 1000) : NaN;
+  }
+
+  /**
+   * The storyline: an ordered, depth-annotated walk of the graph.
+   * Returns { steps, lead, stats, narrative }:
+   *   steps: [{ id, node, depth, role: 'ancestry'|'activity'|'net', delta,
+   *             tokens, signals }]   (depth-first, earliest child first)
+   *   lead:  the run of plain-ancestry steps at the top that the view folds
+   *          into one "How it started" strip (kept to those beyond the last
+   *          two, so the immediate parents stay as full cards).
+   *   stats: { processes, activity, depth, spanText, hasNet }
+   *   narrative: one sentence, built only from the stored facts.
+   */
+  function toStory(graph) {
+    var byId = {}, kids = {};
+    graph.nodes.forEach(function (n) { byId[n.id] = n; kids[n.id] = []; });
+    graph.edges.forEach(function (e) {
+      if (kids[e.source]) kids[e.source].push(e.target);
+    });
+    function ord(a, b) { return (byId[a].firstEpoch - byId[b].firstEpoch) || 0; }
+    Object.keys(kids).forEach(function (k) { kids[k].sort(ord); });
+
+    var steps = [], visited = {}, maxDepth = 0;
+    function walk(id, depth, prevMs) {
+      if (visited[id]) return;
+      visited[id] = true;
+      var n = byId[id];
+      var ms = nodeMs(n);
+      var delta = (isFinite(ms) && isFinite(prevMs)) ? fmtDelta((ms - prevMs) / 1000) : "";
+      steps.push({
+        id: id, node: n, depth: depth,
+        role: n.net ? "net" : (n.activity ? "activity" : "ancestry"),
+        delta: delta,
+        icon: iconFor(n),
+        tokens: tokenizeCommand(n.command),
+        signals: signalsFor(n)
+      });
+      if (depth > maxDepth) maxDepth = depth;
+      var anchor = isFinite(ms) ? ms : prevMs;
+      kids[id].forEach(function (c) { walk(c, depth + 1, anchor); });
+    }
+    var targets = {};
+    graph.edges.forEach(function (e) { targets[e.target] = true; });
+    graph.nodes.filter(function (n) { return !targets[n.id]; })
+      .sort(function (a, b) { return a.firstEpoch - b.firstEpoch || 0; })
+      .forEach(function (n) { walk(n.id, 0, NaN); });
+    graph.nodes.forEach(function (n) { walk(n.id, 0, NaN); });   // orphans / cycles
+
+    // Fold the leading run of plain ancestry, keeping the last two visible.
+    var run = 0;
+    while (run < steps.length && steps[run].role === "ancestry" &&
+           steps[run].depth === run) run++;
+    var lead = run > 3 ? steps.slice(0, run - 2) : [];
+
+    var procs = steps.filter(function (s) { return s.role !== "net"; });
+    var acts = procs.filter(function (s) { return s.role === "activity"; });
+    var epochs = procs.map(function (s) { return nodeMs(s.node); }).filter(isFinite);
+    var span = epochs.length > 1 ? (Math.max.apply(null, epochs) - Math.min.apply(null, epochs)) / 1000 : NaN;
+    var branched = Object.keys(kids).some(function (k) { return kids[k].length > 1; });
+    var hasNet = steps.some(function (s) { return s.role === "net"; });
+
+    var narrative = "";
+    if (procs.length) {
+      var first = procs[0].node, lastAct = acts.length ? acts[acts.length - 1].node : procs[procs.length - 1].node;
+      var net = steps.filter(function (s) { return s.role === "net"; })[0];
+      var who = function (n) { return n.name + (n.pid ? " (PID " + n.pid + ")" : ""); };
+      narrative = procs.length === 1
+        ? who(first) + " is the only process the console recorded."
+        : who(first) + " started a chain of " + procs.length + " processes ending in " + who(lastAct);
+      if (procs.length > 1) narrative += net
+        ? ", which connected to " + net.node.net.ip + (net.node.net.asn ? " (AS " + net.node.net.asn + ")" : "") + "."
+        : ".";
+      else if (net) narrative = who(first) + " connected to " + net.node.net.ip + ".";
+    }
+
+    return {
+      steps: steps, lead: lead, narrative: narrative,
+      stats: {
+        processes: procs.length, activity: acts.length, depth: maxDepth + 1, branched: branched,
+        spanText: isFinite(span) ? fmtDelta(span).replace(/^\+/, "") : "", hasNet: hasNet
+      }
+    };
+  }
+
   var COLORS = {
     FILL: FILL, LABEL: LABEL,
     ANCESTRY_BORDER: ANCESTRY_BORDER, ACTIVITY_BORDER: ACTIVITY_BORDER,
@@ -386,6 +542,11 @@
     graphStyle: graphStyle,
     graphLayout: graphLayout,
     snakeLayout: snakeLayout,
+    toStory: toStory,
+    tokenizeCommand: tokenizeCommand,
+    signalsFor: signalsFor,
+    fmtDelta: fmtDelta,
+    iconFor: iconFor,
     CARD_W: CARD_W,
     COLORS: COLORS
   };

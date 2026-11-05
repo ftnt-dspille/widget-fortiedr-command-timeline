@@ -118,6 +118,58 @@
       font-family: monospace; word-break: break-all; padding: 1px 0;
     }
     .fortiedr-command-timeline .fctl-dim { opacity: 0.6; }
+
+    /* ---- storyline ---- */
+    .fortiedr-command-timeline .fctl-headrow { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .fortiedr-command-timeline .fctl-narr { margin: 0; font-size: 13px; line-height: 1.5; flex: 1; }
+    .fortiedr-command-timeline .fctl-tabs { display: inline-flex; border: 1px solid rgba(127,127,127,.4); border-radius: 6px; overflow: hidden; flex: none; }
+    .fortiedr-command-timeline .fctl-tab { border: 0; background: transparent; color: inherit; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 4px 12px; cursor: pointer; opacity: .7; }
+    .fortiedr-command-timeline .fctl-tab-on { background: rgba(34,211,238,.16); opacity: 1; }
+    .fortiedr-command-timeline .fctl-stat { padding: 2px 9px; border-radius: 999px; border: 1px solid rgba(127,127,127,.3); font-size: 11px; }
+    .fortiedr-command-timeline .fctl-stat b { font-weight: 700; margin-right: 2px; }
+    .fortiedr-command-timeline .fctl-lead { margin: 10px 0 0 0; }
+    .fortiedr-command-timeline .fctl-lead-btn { width: 100%; display: flex; gap: 10px; align-items: baseline; text-align: left; cursor: pointer;
+      border: 1px dashed rgba(127,127,127,.4); border-radius: 6px; background: transparent; color: inherit; padding: 6px 10px; font-size: 12px; }
+    .fortiedr-command-timeline .fctl-lead-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .7; white-space: nowrap; }
+    .fortiedr-command-timeline .fctl-lead-names { flex: 1; font-family: monospace; opacity: .85; }
+    .fortiedr-command-timeline .fctl-lead-names i { opacity: .5; font-style: normal; }
+    .fortiedr-command-timeline .fctl-lead-more { font-size: 11px; opacity: .6; white-space: nowrap; }
+    .fortiedr-command-timeline .fctl-steps { list-style: none; margin: 10px 0 0 0; padding: 0; }
+    .fortiedr-command-timeline .fctl-step { display: flex; gap: 10px; position: relative; }
+    .fortiedr-command-timeline .fctl-rail { flex: none; width: 28px; position: relative; display: flex; justify-content: center; }
+    .fortiedr-command-timeline .fctl-rail::before { content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(127,127,127,.35); }
+    .fortiedr-command-timeline .fctl-step:first-child .fctl-rail::before { top: 14px; }
+    .fortiedr-command-timeline .fctl-step:last-child .fctl-rail::before { bottom: calc(100% - 14px); }
+    .fortiedr-command-timeline .fctl-node { position: relative; z-index: 1; width: 28px; height: 28px; margin-top: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      background: #2b3648; border: 2px solid #64748b; color: #e8ebf0; }
+    .fortiedr-command-timeline .fctl-step-activity .fctl-node { border-color: #e5484d; box-shadow: 0 0 0 4px rgba(229,72,77,.18); }
+    .fortiedr-command-timeline .fctl-step-net .fctl-node { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,.18); }
+    .fortiedr-command-timeline .ic { display: inline-block; width: 14px; height: 14px; background: currentColor; -webkit-mask: var(--m) center/contain no-repeat; mask: var(--m) center/contain no-repeat; }
+    .fortiedr-command-timeline .ic-terminal { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l6 6-6 6M12 19h8'/%3E%3C/svg%3E"); }
+    .fortiedr-command-timeline .ic-globe { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18'/%3E%3C/svg%3E"); }
+    .fortiedr-command-timeline .ic-shield { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linejoin='round'%3E%3Cpath d='M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z'/%3E%3C/svg%3E"); }
+    .fortiedr-command-timeline .ic-key { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='8' cy='15' r='4'/%3E%3Cpath d='M11 12l9-9M16 7l3 3'/%3E%3C/svg%3E"); }
+    .fortiedr-command-timeline .ic-cube { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linejoin='round'%3E%3Cpath d='M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9'/%3E%3C/svg%3E"); }
+    .fortiedr-command-timeline .fctl-body { flex: 1; min-width: 0; padding: 0 0 14px 0; cursor: pointer; }
+    .fortiedr-command-timeline .fctl-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 28px; }
+    .fortiedr-command-timeline .fctl-name { font-weight: 700; font-size: 13.5px; }
+    .fortiedr-command-timeline .fctl-step-ancestry .fctl-name { opacity: .8; font-weight: 600; }
+    .fortiedr-command-timeline .fctl-chip-act { color: #e5484d; border-color: #e5484d; }
+    .fortiedr-command-timeline .fctl-chip-net { color: #3b82f6; border-color: #3b82f6; }
+    .fortiedr-command-timeline .fctl-delta { margin-left: auto; font-size: 11px; opacity: .55; font-variant-numeric: tabular-nums; }
+    .fortiedr-command-timeline .fctl-cmd { font-family: monospace; font-size: 12px; margin: 2px 0 0 0; padding: 6px 9px; border-radius: 5px; background: rgba(127,127,127,.13); word-break: break-all; white-space: pre-wrap; }
+    .fortiedr-command-timeline .fctl-step-activity .fctl-cmd { background: rgba(229,72,77,.10); border-left: 3px solid #e5484d; }
+    .fortiedr-command-timeline .fctl-tok-ip { color: #3b82f6; font-weight: 700; }
+    .fortiedr-command-timeline .fctl-tok-sock { color: #e5484d; font-weight: 700; }
+    .fortiedr-command-timeline .fctl-tok-tmp { color: #e2a400; font-weight: 700; }
+    .fortiedr-command-timeline .fctl-netline { font-size: 12.5px; padding: 6px 9px; border-radius: 5px; background: rgba(59,130,246,.12); word-break: break-all; }
+    .fortiedr-command-timeline .fctl-signals { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
+    .fortiedr-command-timeline .fctl-sig { font-size: 11px; padding: 1px 8px; border-radius: 4px; background: rgba(226,164,0,.14); color: #e2a400; }
+    .fortiedr-command-timeline .fctl-hint { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; opacity: .45; margin-top: 4px; }
+    .fortiedr-command-timeline .fctl-more { margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(127,127,127,.3); }
+    .fortiedr-command-timeline .fctl-fact { padding: 3px 0; font-size: 12px; }
+    .fortiedr-command-timeline .fctl-fact-k { display: block; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; opacity: .6; }
+    .fortiedr-command-timeline .fctl-fact-v { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-family: monospace; word-break: break-all; }
     .fortiedr-command-timeline .fctl-state {
       padding: 14px 12px; border: 1px dashed rgba(127, 127, 127, 0.4);
       border-radius: 6px; font-size: 12.5px;
@@ -125,98 +177,142 @@
     .fortiedr-command-timeline .fctl-state-err { color: #b02a37; }
   </style>
 
-  <!-- ready: the event header + the spawn graph -->
+  <!-- ready: what the alert card above does NOT already say (host, destination,
+       times and classification live there), then the story or the graph. -->
   <div data-ng-if="state === 'ready'" data-testid="fortiedr-command-timeline-ready">
     <div class="fctl-head">
-      <h3 class="fctl-title" data-testid="fortiedr-command-timeline-record-name">{{ recordName }}</h3>
+      <div class="fctl-headrow">
+        <p class="fctl-narr" data-ng-if="story.narrative" data-testid="fortiedr-command-timeline-narrative">{{ story.narrative }}</p>
+        <div class="fctl-tabs" role="tablist" data-ng-if="!graphEmpty">
+          <button type="button" class="fctl-tab" data-ng-class="{ 'fctl-tab-on': view === 'story' }"
+                  data-ng-click="setView('story')" data-testid="fortiedr-command-timeline-tab-story">Story</button>
+          <button type="button" class="fctl-tab" data-ng-class="{ 'fctl-tab-on': view === 'graph' }"
+                  data-ng-click="setView('graph')" data-testid="fortiedr-command-timeline-tab-graph">Graph</button>
+        </div>
+      </div>
       <div class="fctl-summary" data-testid="fortiedr-command-timeline-event">
-        <span data-ng-if="event.host"><span class="fctl-dim">Host</span> {{ event.host }}</span>
-        <span data-ng-if="event.os">{{ event.os }}</span>
-        <span data-ng-if="event.destination"><span class="fctl-dim">To</span> {{ event.destination }}</span>
-        <span data-ng-if="event.remoteIP">{{ event.remoteIP }}</span>
-        <span data-ng-if="event.asn">{{ event.asn }}</span>
-        <span data-ng-if="event.firstSeen">
-          <span class="fctl-dim">{{ event.firstSeen }}</span>
-          <span data-ng-if="event.lastSeen && event.lastSeen !== event.firstSeen"> &rarr; {{ event.lastSeen }}</span>
-        </span>
-        <span data-ng-if="event.eventCount && event.eventCount !== '1'">
-          {{ event.eventCount }} events
-        </span>
+        <span class="fctl-stat" data-ng-if="story.stats.processes"><b>{{ story.stats.processes }}</b> processes</span>
+        <span class="fctl-stat" data-ng-if="story.stats.activity"><b>{{ story.stats.activity }}</b> with activity</span>
+        <span class="fctl-stat" data-ng-if="story.stats.spanText"><b>{{ story.stats.spanText }}</b> end to end</span>
+        <span class="fctl-stat" data-ng-if="event.os">{{ event.os }}</span>
+        <span class="fctl-stat" data-ng-if="event.asn">{{ event.asn }}</span>
+        <span class="fctl-stat" data-ng-if="event.eventCount && event.eventCount !== '1'"><b>{{ event.eventCount }}</b> events</span>
       </div>
     </div>
 
-    <div class="fctl-graphwrap" data-ng-if="!graphEmpty"
-         data-ng-style="{ height: graphHeightPx }"
-         data-testid="fortiedr-command-timeline-graph">
-      <div id="fctl-cy" class="fctl-cy"></div>
+    <!-- STORY: how it started, what it did, where it reached -->
+    <div class="fctl-story" data-ng-if="view === 'story' && !graphEmpty" data-testid="fortiedr-command-timeline-story">
+      <div class="fctl-lead" data-ng-if="story.lead.length" data-testid="fortiedr-command-timeline-lead">
+        <button type="button" class="fctl-lead-btn" data-ng-click="toggleLead()">
+          <span class="fctl-lead-label">How it started</span>
+          <span class="fctl-lead-names">
+            <span data-ng-repeat="l in story.lead">{{ l.node.name }}<i data-ng-if="!$last"> &rsaquo; </i></span>
+          </span>
+          <span class="fctl-lead-more">{{ leadOpen ? 'hide' : 'show ' + story.lead.length }}</span>
+        </button>
+      </div>
+
+      <ol class="fctl-steps">
+        <li class="fctl-step" data-ng-repeat="st in visibleSteps()"
+            data-ng-class="'fctl-step-' + st.role"
+            data-ng-style="{ 'margin-left': stepIndent(st) }"
+            data-testid="fortiedr-command-timeline-step">
+          <span class="fctl-rail"><span class="fctl-node"><span class="ic" data-ng-class="'ic-' + st.icon"></span></span></span>
+          <div class="fctl-body" data-ng-click="toggle(st)">
+            <div class="fctl-line">
+              <span class="fctl-name">{{ st.node.net ? 'Internet host' : st.node.name }}</span>
+              <span class="fctl-chip" data-ng-if="st.node.pid">PID {{ st.node.pid }}</span>
+              <span class="fctl-chip fctl-chip-act" data-ng-if="st.role === 'activity' && kindOf(st)">{{ kindOf(st) }}</span>
+              <span class="fctl-chip fctl-chip-net" data-ng-if="st.node.net && st.node.net.action">{{ st.node.net.action }}</span>
+              <span class="fctl-delta" data-ng-if="st.delta">{{ st.delta }}</span>
+            </div>
+            <div class="fctl-netline" data-ng-if="st.node.net" data-testid="fortiedr-command-timeline-net-facts">
+              <b>{{ st.node.net.ip }}</b>
+              <span data-ng-if="st.node.net.asn"> &middot; AS {{ st.node.net.asn }}</span>
+              <span data-ng-if="st.node.net.country"> &middot; {{ st.node.net.country }}</span>
+              <span data-ng-if="st.node.net.remoteUrl"> &middot; {{ st.node.net.remoteUrl }}</span>
+            </div>
+            <div class="fctl-cmd" data-ng-if="st.tokens.length" data-testid="fortiedr-command-timeline-command"><span
+              data-ng-repeat="t in st.tokens track by $index" data-ng-class="t.k ? 'fctl-tok-' + t.k : ''">{{ t.t }}</span></div>
+            <div class="fctl-signals" data-ng-if="st.signals.length">
+              <span class="fctl-sig" data-ng-repeat="g in st.signals">{{ g }}</span>
+            </div>
+
+            <!-- expanded: only what the line above does not already show -->
+            <div class="fctl-more" data-ng-if="open[st.id]" data-testid="fortiedr-command-timeline-detail">
+              <div class="fctl-fact" data-ng-repeat="s in extraStages(st)" data-testid="fortiedr-command-timeline-stage">
+                <span class="fctl-fact-k">{{ s.stage || 'Stage' }}</span>
+                <span class="fctl-fact-v">
+                  <span data-ng-if="s.path">{{ s.path }}</span>
+                  <span class="fctl-chip {{ s.cert === 'Unsigned' ? 'fctl-chip-unsigned' : (s.cert === 'Signed' ? 'fctl-chip-signed' : '') }}"
+                        data-ng-if="s.cert">{{ s.cert }}</span>
+                  <span class="fctl-chip fctl-dim" data-ng-if="s.bits">{{ s.bits }}</span>
+                  <span class="fctl-chip fctl-dim" data-ng-if="s.auxPid">child PID {{ s.auxPid }}</span>
+                  <span class="fctl-dim" data-ng-if="s.time">{{ s.time }}</span>
+                </span>
+                <ul class="fctl-modules" data-ng-if="config.showModules && otherModules(s).length">
+                  <li data-ng-repeat="mod in otherModules(s)">{{ mod.path || mod.name }}<span data-ng-if="mod.cert"> &middot; {{ mod.cert }}</span><span data-ng-if="mod.writable"> &middot; writable: {{ mod.writable }}</span></li>
+                </ul>
+              </div>
+            </div>
+            <div class="fctl-hint" data-ng-if="hasMore(st)">{{ open[st.id] ? 'less' : 'details' }}</div>
+          </div>
+        </li>
+      </ol>
     </div>
-    <div class="fctl-legend" data-ng-if="!graphEmpty"
-         data-testid="fortiedr-command-timeline-legend">
-      <span><span class="fctl-dot fctl-dot-ancestry"></span>ancestry</span>
-      <span><span class="fctl-dot fctl-dot-activity"></span>activity</span>
-      <span><span class="fctl-dot fctl-dot-net"></span>internet host</span>
-      <span class="fctl-dim">tap a node for its stages and command lines</span>
+
+    <!-- GRAPH: the spawn graph, kept for branched or very long chains -->
+    <div data-ng-if="view === 'graph' && !graphEmpty">
+      <div class="fctl-graphwrap" data-ng-style="{ height: graphHeightPx }"
+           data-testid="fortiedr-command-timeline-graph">
+        <div id="fctl-cy" class="fctl-cy"></div>
+      </div>
+      <div class="fctl-legend" data-testid="fortiedr-command-timeline-legend">
+        <span><span class="fctl-dot fctl-dot-ancestry"></span>ancestry</span>
+        <span><span class="fctl-dot fctl-dot-activity"></span>activity</span>
+        <span><span class="fctl-dot fctl-dot-net"></span>internet host</span>
+        <span class="fctl-dim">tap a node for its stages</span>
+      </div>
+      <div class="fctl-detail" data-ng-if="selected" data-testid="fortiedr-command-timeline-detail">
+        <div class="fctl-detail-head">
+          <span class="fctl-detail-name" data-testid="fortiedr-command-timeline-detail-name">
+            {{ selected.label.split('\n')[0] }}
+            <span class="fctl-dim" data-ng-if="selected.pid">&middot; PID {{ selected.pid }}</span>
+          </span>
+          <button type="button" class="fctl-detail-close" data-ng-click="closeDetail()"
+                  data-testid="fortiedr-command-timeline-detail-close" aria-label="Close node detail">&times;</button>
+        </div>
+        <div class="fctl-netfacts" data-ng-if="selected.net" data-testid="fortiedr-command-timeline-net-facts">
+          IP {{ selected.net.ip }}
+          <span data-ng-if="selected.net.asn"> &middot; AS {{ selected.net.asn }}</span>
+          <span data-ng-if="selected.net.country"> &middot; {{ selected.net.country }}</span>
+          <span data-ng-if="selected.net.remoteUrl"> &middot; {{ selected.net.remoteUrl }}</span>
+          <span data-ng-if="selected.net.action"> &middot; {{ selected.net.action }}</span>
+        </div>
+        <div class="fctl-card" data-ng-repeat="s in selected.stages" data-testid="fortiedr-command-timeline-stage">
+          <div class="fctl-stage-head"><span>{{ s.stage || 'Process stage' }}</span><span>{{ s.time }}</span></div>
+          <div class="fctl-process">
+            <span data-testid="fortiedr-command-timeline-process">{{ s.process }}</span>
+            <span class="fctl-chip" data-ng-if="s.pid">PID {{ s.pid }}</span>
+            <span class="fctl-chip fctl-dim" data-ng-if="s.auxPid">child PID {{ s.auxPid }}</span>
+            <span class="fctl-chip {{ s.cert === 'Unsigned' ? 'fctl-chip-unsigned' : (s.cert === 'Signed' ? 'fctl-chip-signed' : '') }}"
+                  data-ng-if="s.cert">{{ s.cert }}</span>
+            <span class="fctl-chip fctl-dim" data-ng-if="s.bits">{{ s.bits }}</span>
+          </div>
+          <div class="fctl-path" data-ng-if="s.path && s.path !== s.process">{{ s.path }}</div>
+          <div class="fctl-command" data-ng-if="s.command" data-testid="fortiedr-command-timeline-command">{{ s.command }}</div>
+          <ul class="fctl-modules" data-ng-if="config.showModules && s.modules.length">
+            <li data-ng-repeat="mod in s.modules">{{ mod.path || mod.name }}<span data-ng-if="mod.cert"> &middot; {{ mod.cert }}</span><span data-ng-if="mod.writable"> &middot; writable: {{ mod.writable }}</span></li>
+          </ul>
+        </div>
+      </div>
     </div>
 
     <!-- a timeline with an empty stacks list: header is real, graph is not -->
-    <div class="fctl-state" data-ng-if="state === 'ready' && graphEmpty"
-         data-testid="fortiedr-command-timeline-no-stages">
+    <div class="fctl-state" data-ng-if="graphEmpty" data-testid="fortiedr-command-timeline-no-stages">
       The console holds no process timeline for this event (its stacks list
-      was empty when the alert was enriched). The event header above is what
+      was empty when the alert was enriched). The alert card above is what
       FortiEDR stored.
-    </div>
-
-    <!-- the tapped node: every stage that process ran, chronologically -->
-    <div class="fctl-detail" data-ng-if="selected"
-         data-testid="fortiedr-command-timeline-detail">
-      <div class="fctl-detail-head">
-        <span class="fctl-detail-name" data-testid="fortiedr-command-timeline-detail-name">
-          {{ selected.label.split('\n')[0] }}
-          <span class="fctl-dim" data-ng-if="selected.pid">&middot; PID {{ selected.pid }}</span>
-        </span>
-        <button type="button" class="fctl-detail-close"
-                data-ng-click="closeDetail()"
-                data-testid="fortiedr-command-timeline-detail-close"
-                aria-label="Close node detail">&times;</button>
-      </div>
-      <div class="fctl-kinds" data-ng-if="selected.kinds.length && !selected.net">
-        {{ selected.kinds.join(', ') }}
-      </div>
-      <!-- the internet host's own facts, then the command that reached out -->
-      <div class="fctl-netfacts" data-ng-if="selected.net"
-           data-testid="fortiedr-command-timeline-net-facts">
-        IP {{ selected.net.ip }}
-        <span data-ng-if="selected.net.asn"> &middot; AS {{ selected.net.asn }}</span>
-        <span data-ng-if="selected.net.country"> &middot; {{ selected.net.country }}</span>
-        <span data-ng-if="selected.net.remoteUrl"> &middot; {{ selected.net.remoteUrl }}</span>
-        <span data-ng-if="selected.net.action"> &middot; {{ selected.net.action }}</span>
-      </div>
-      <div class="fctl-card" data-ng-repeat="s in selected.stages"
-           data-testid="fortiedr-command-timeline-stage">
-        <div class="fctl-stage-head">
-          <span>{{ s.stage || 'Process stage' }}</span>
-          <span>{{ s.time }}</span>
-        </div>
-        <div class="fctl-process">
-          <span data-testid="fortiedr-command-timeline-process">{{ s.process }}</span>
-          <span class="fctl-chip" data-ng-if="s.pid">PID {{ s.pid }}</span>
-          <span class="fctl-chip fctl-dim" data-ng-if="s.auxPid">child PID {{ s.auxPid }}</span>
-          <span class="fctl-chip {{ s.cert === 'Unsigned' ? 'fctl-chip-unsigned' : (s.cert === 'Signed' ? 'fctl-chip-signed' : '') }}"
-                data-ng-if="s.cert">{{ s.cert }}</span>
-          <span class="fctl-chip fctl-dim" data-ng-if="s.bits">{{ s.bits }}</span>
-        </div>
-        <div class="fctl-path" data-ng-if="s.path && s.path !== s.process">{{ s.path }}</div>
-        <div class="fctl-command" data-ng-if="s.command"
-             data-testid="fortiedr-command-timeline-command">{{ s.command }}</div>
-        <ul class="fctl-modules" data-ng-if="config.showModules && s.modules.length">
-          <li data-ng-repeat="mod in s.modules">
-            {{ mod.path || mod.name }}
-            <span data-ng-if="mod.cert"> &middot; {{ mod.cert }}</span>
-            <span data-ng-if="mod.writable"> &middot; writable: {{ mod.writable }}</span>
-            <span data-ng-if="mod.hash"> &middot; {{ mod.hash }}</span>
-          </li>
-        </ul>
-      </div>
     </div>
   </div>
 

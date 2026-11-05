@@ -418,3 +418,69 @@ describe("snakeLayout -- linear chains wrap into readable rows", () => {
     expect(g.snakeLayout(bashGraph(), null)).toBeNull();
   });
 });
+
+// ---- storyline (the default view) -----------------------------------------
+describe("toStory", () => {
+  const story = () => g.toStory(g.toGraph(bashTimeline(), { action: "Block" }));
+
+  test("walks the chain root to internet host with per-step deltas", () => {
+    const s = story();
+    expect(s.steps.map((x) => x.node.name)).toEqual(
+      ["systemd", "sshd", "sshd", "sshd", "bash", "sudo", "bash", "timeout", "bash", "Internet host (Block)"]);
+    expect(s.steps.map((x) => x.role)).toEqual(
+      ["ancestry", "ancestry", "ancestry", "ancestry", "ancestry", "ancestry", "ancestry", "ancestry", "activity", "net"]);
+    expect(s.steps[0].delta).toBe("");           // nothing before the root
+    expect(s.steps[1].delta).toBe("+1s");
+    expect(s.stats).toMatchObject({ processes: 9, activity: 1, branched: false, hasNet: true, spanText: "8s" });
+  });
+
+  test("folds the leading ancestry run but keeps the last two parents", () => {
+    const s = story();
+    // 8 plain-ancestry steps lead the chain; the last two stay as full cards.
+    expect(s.lead.length).toBe(6);
+    expect(s.steps.slice(s.lead.length)[0].node.name).toBe("bash");
+  });
+
+  test("a short chain folds nothing", () => {
+    const t = bashTimeline({ stacks: bashChain().slice(0, 2) });
+    expect(g.toStory(g.toGraph(t)).lead).toEqual([]);
+  });
+
+  test("the narrative names only stored facts", () => {
+    expect(story().narrative).toBe(
+      "systemd (PID 1) started a chain of 9 processes ending in bash (PID 5346), " +
+      "which connected to 1.1.1.1 (AS 13335 CLOUDFLARENET).");
+  });
+
+  test("tokenizes socket paths, IPs and temp paths; nothing else is marked", () => {
+    const t = g.tokenizeCommand("-c exec 3<>/dev/tcp/1.1.1.1/443 && bash /tmp/edr_lab.sh");
+    expect(t.filter((x) => x.k).map((x) => [x.k, x.t])).toEqual(
+      [["sock", "/dev/tcp/1.1.1.1/443"], ["tmp", "/tmp/edr_lab.sh"]]);
+    expect(t.map((x) => x.t).join("")).toBe("-c exec 3<>/dev/tcp/1.1.1.1/443 && bash /tmp/edr_lab.sh");
+    expect(g.tokenizeCommand("ping 10.0.0.5:8080").filter((x) => x.k)).toEqual(
+      [{ t: "10.0.0.5:8080", k: "ip" }]);
+    expect(g.tokenizeCommand("")).toEqual([]);
+  });
+
+  test("signals are factual call-outs", () => {
+    const s = story();
+    const by = (name, pid) => s.steps.find((x) => x.node.name === name && x.node.pid === pid);
+    expect(by("sudo", "5302").signals).toEqual(["Runs from a temporary location", "Privilege elevation"]);
+    expect(by("bash", "5346").signals).toEqual(["Opens a network socket from a shell"]);
+    expect(by("sshd", "1064").signals).toEqual([]);
+  });
+
+  test("indent flag: a branched graph reports branched", () => {
+    const t = bashTimeline({ stacks: bashChain().concat([
+      rawStage({ processId: "5304", auxProcessId: "9999", shortSourceProcessName: "bash", timestamp: 1793725336000 }),
+      rawStage({ processId: "9999", auxProcessId: null, shortSourceProcessName: "curl", timestamp: 1793725337000 }),
+    ]) });
+    expect(g.toStory(g.toGraph(t)).stats.branched).toBe(true);
+  });
+
+  test("icons follow the process kind", () => {
+    const s = story();
+    expect(s.steps.map((x) => x.icon)).toEqual(
+      ["cube", "key", "key", "key", "terminal", "shield", "terminal", "cube", "terminal", "globe"]);
+  });
+});

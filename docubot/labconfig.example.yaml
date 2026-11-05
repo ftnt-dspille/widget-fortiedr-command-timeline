@@ -1,0 +1,9 @@
+# Copy to docubot/labconfig.yaml (gitignored) and point it at your box, or leave
+# the placeholders and set DOCUBOT_SOAR_URL / DOCUBOT_SOAR_USER / DOCUBOT_SOAR_PASS.
+devices:
+  soar:
+    type: gui
+    product: fortisoar
+    url: https://fortisoar.example.com
+    user: <your-user>
+    pass: <your-password>

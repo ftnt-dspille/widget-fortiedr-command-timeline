@@ -100,6 +100,10 @@ function withGraphContainer(fn) {
 }
 
 function makeController(config, record, httpGet, state, cytoscape) {
+  // The widget now opens on the Story tab; the graph-mechanics tests below
+  // exercise the Graph tab, so they default to it. Story tests pass
+  // defaultView: "story" explicitly.
+  config = Object.assign({ defaultView: "graph" }, config || {});
   const fakeHttp = { get: httpGet || (() => ({ then: () => ({ catch: () => {} }) })) };
   const fakeState = state || { params: {} };
   let $scope;
@@ -409,5 +413,61 @@ describe("fortiedrCommandTimeline view controller", () => {
   test("showModules rides the config when set", () => {
     const rec = { name: "x", sourcedata: sourcedata() };
     expect(makeController({ showModules: false }, rec).$scope.config.showModules).toBe(false);
+  });
+});
+
+describe("fortiedrCommandTimeline story view", () => {
+  const rec = { name: "x", "@id": "/api/3/alerts/abc", sourcedata: sourcedata() };
+  // No canvas timer in the story view, so no flush: build the controller directly.
+  const readyController = (cfg, r, c) => makeController(cfg, r, undefined, undefined, c);
+
+  test("opens on the story and mounts no canvas", () => {
+    const ctl = readyController({ defaultView: "story" }, rec);
+    expect(ctl.$scope.view).toBe("story");
+    expect(ctl.$scope.story.stats.processes).toBe(2);
+    expect(ctl.cytoscape.calls.length).toBe(0);
+  });
+
+  test("story still renders when cytoscape never loaded", () => {
+    const ctl = readyController({ defaultView: "story" }, rec, null);
+    expect(ctl.$scope.state).toBe("ready");
+  });
+
+  test("switching to Graph mounts once; back to Story tears it down", () => {
+    const ctl = readyController({ defaultView: "story" }, rec);
+    ctl.$scope.setView("graph");
+    withGraphContainer(() => ctl.flush());
+    expect(ctl.cytoscape.calls.length).toBe(1);
+    ctl.$scope.setView("story");
+    expect(ctl.$scope.view).toBe("story");
+  });
+
+  test("detail expands inline, and only for steps with something to add", () => {
+    const ctl = readyController({ defaultView: "story" }, rec);
+    const steps = ctl.$scope.visibleSteps();
+    const first = steps[0];
+    expect(ctl.$scope.hasMore(first)).toBe(true);        // cert / path / bits
+    ctl.$scope.toggle(first);
+    expect(ctl.$scope.open[first.id]).toBe(true);
+    ctl.$scope.toggle(first);
+    expect(ctl.$scope.open[first.id]).toBe(false);
+  });
+
+  test("the lead-in toggles through a scope function (ng-if safe)", () => {
+    const ctl = readyController({ defaultView: "story" }, rec);
+    expect(ctl.$scope.leadOpen).toBe(false);
+    ctl.$scope.toggleLead();
+    expect(ctl.$scope.leadOpen).toBe(true);
+  });
+
+  test("otherModules drops the stage's own binary", () => {
+    const ctl = readyController({ defaultView: "story" }, rec);
+    const stage = { path: "/usr/bin/x", modules: [{ path: "/usr/bin/x" }, { path: "/lib/y.so" }] };
+    expect(ctl.$scope.otherModules(stage)).toEqual([{ path: "/lib/y.so" }]);
+  });
+
+  test("a chain with no branches is not indented", () => {
+    const ctl = readyController({ defaultView: "story" }, rec);
+    expect(ctl.$scope.stepIndent(ctl.$scope.visibleSteps()[1])).toBe("0");
   });
 });

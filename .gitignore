@@ -1,0 +1,4 @@
+# docubot target: the lab config names a real box and credentials; run state is local.
+docubot/labconfig.yaml
+docubot/labconfig.local.yaml
+.docubot/

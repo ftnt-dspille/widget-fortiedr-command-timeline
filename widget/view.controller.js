@@ -21,7 +21,7 @@
     var FETCH_TIMEOUT_MS = 8000;
     var GRAPH_SETTLE_MS = 120;                      // container must be in the DOM
 
-    var defaults = { title: "FortiEDR Command Timeline", showModules: true, graphHeight: 340 };
+    var defaults = { title: "FortiEDR Command Timeline", showModules: true, graphHeight: 340, defaultView: "story" };
     $scope.config = angular.extend({}, defaults, config || {});
     // Bounded, scrollable graph viewport (ztp's clamp).
     var gh = Number($scope.config.graphHeight);
@@ -33,7 +33,12 @@
     $scope.error = "";
     $scope.recordName = null;
     $scope.event = null;      // event header (host/os/when/where)
-    $scope.selected = null;   // the tapped node's detail (stages + commands)
+    $scope.selected = null;   // the tapped node's detail (graph view)
+    $scope.view = $scope.config.defaultView === "graph" ? "graph" : "story";
+    $scope.story = null;      // the storyline (steps / lead / stats / narrative)
+    $scope.leadOpen = false;  // the folded "how it started" run
+    $scope.open = {};         // story steps expanded inline
+    var lastGraph = null, lastElements = null;
 
     var cy = null;            // cytoscape instance
     // The platform can rebuild the widget while a layout is in flight; the
@@ -89,20 +94,37 @@
     // ---- graph ----------------------------------------------------------
 
     function mountGraph(timeline) {
-      var C = $window.cytoscape;
-      if (!C || !g) {
+      if (!g) {
         $scope.state = "error";
-        $scope.error = "The graph library failed to load.";
+        $scope.error = "The timeline library failed to load.";
         return;
       }
       var graph = g.toGraph(timeline, { action: $scope.recordAction });
+      $scope.story = g.toStory(graph);
+      $scope.open = {};
+      $scope.leadOpen = false;
       if (!graph.nodes.length) {          // timeline present, stacks empty
         $scope.graphEmpty = true;         // -> the no-stages note, not a graph
         $scope.state = "ready";
         return;
       }
       $scope.graphEmpty = false;
-      var elements = g.toElements(graph);
+      lastGraph = graph;
+      lastElements = g.toElements(graph);
+      if ($scope.view === "graph") mountCy();
+    }
+
+    // Mount the cytoscape view for the last graph. Only runs on the Graph
+    // tab: the story view is plain DOM and needs no canvas.
+    function mountCy() {
+      var C = $window.cytoscape;
+      var graph = lastGraph, elements = lastElements;
+      if (!graph) return;
+      if (!C) {
+        $scope.state = "error";
+        $scope.error = "The graph library failed to load.";
+        return;
+      }
 
       if (C.use && $window.cytoscapeDagre && !C._fctlDagreRegistered) {
         try { C.use($window.cytoscapeDagre); } catch (e) { /* already registered */ }
@@ -157,6 +179,46 @@
     }
 
     $scope.closeDetail = function () { $scope.selected = null; };
+
+    $scope.setView = function (v) {
+      if (v === $scope.view) return;
+      $scope.view = v;
+      $scope.selected = null;
+      if (cy) { try { cy.destroy(); } catch (e) {} cy = null; }
+      if (v === "graph") mountCy();
+    };
+
+    // ---- story view helpers ----
+    $scope.visibleSteps = function () {
+      var st = $scope.story;
+      if (!st) return [];
+      return $scope.leadOpen || !st.lead.length ? st.steps : st.steps.slice(st.lead.length);
+    };
+    // Indent only branched chains (a straight line reads best flush left).
+    $scope.stepIndent = function (step) {
+      var st = $scope.story;
+      return st && st.stats.branched ? (Math.min(step.depth, 4) * 14) + "px" : "0";
+    };
+    // A function, not `leadOpen = !leadOpen` in the template: ng-if scopes
+    // would shadow the flag on a child scope.
+    $scope.toggleLead = function () { $scope.leadOpen = !$scope.leadOpen; };
+    $scope.kindOf = function (step) { return g.kindText(step.node); };
+    // Only stages that carry something the card line does not already show.
+    $scope.hasMore = function (step) {
+      return step.node.stages.some(function (s) {
+        return !!(s.cert || s.bits || s.auxPid || (s.path && s.path !== s.process) ||
+                  (s.modules && s.modules.length));
+      });
+    };
+    // The stage's own binary is already the path line: list only other modules.
+    $scope.otherModules = function (s) {
+      return (s.modules || []).filter(function (m) { return !(m.path && m.path === s.path); });
+    };
+    $scope.extraStages = function (step) { return step.node.stages; };
+    $scope.toggle = function (step) {
+      if (!$scope.hasMore(step)) return;
+      $scope.open[step.id] = !$scope.open[step.id];
+    };
 
     function init() {
       var rec = getRecord();
