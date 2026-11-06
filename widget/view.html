@@ -33,7 +33,8 @@
        white labels, which must read the same on a light or a dark panel. */
     .fortiedr-command-timeline .fctl-graphwrap {
       margin: 10px 0 0 0; border: 1px solid rgba(127, 127, 127, 0.35);
-      border-radius: 6px; overflow: hidden; background: #23272f;
+      border-radius: 8px; overflow: hidden;
+      background: radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 0) 0 0 / 22px 22px, #1d2129;
     }
     .fortiedr-command-timeline .fctl-cy {
       width: 100%; height: 100%; min-height: 120px;
@@ -50,6 +51,7 @@
     .fortiedr-command-timeline .fctl-dot-ancestry { background: #64748b; }
     .fortiedr-command-timeline .fctl-dot-net { background: #3b82f6; }
     .fortiedr-command-timeline .fctl-legend .fctl-dim { opacity: 0.7; }
+    .fortiedr-command-timeline .fctl-legend-btn { margin-left: auto; cursor: pointer; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 5px; border: 1px solid rgba(34,211,238,.6); background: rgba(34,211,238,.12); color: inherit; }
     /* The tapped node's detail: same card language the rail used. */
     .fortiedr-command-timeline .fctl-detail {
       margin: 10px 0 0 0; border: 1px solid rgba(34, 211, 238, 0.55);
@@ -120,20 +122,21 @@
     .fortiedr-command-timeline .fctl-dim { opacity: 0.6; }
 
     /* ---- storyline ---- */
+    /* A readable column: full-width cards strand the time deltas and the tabs
+       far from what they belong to. The Graph view keeps the whole panel. */
+    .fortiedr-command-timeline .fctl-head,
+    .fortiedr-command-timeline .fctl-story { max-width: 1280px; }
     .fortiedr-command-timeline .fctl-headrow { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-    .fortiedr-command-timeline .fctl-narr { margin: 0; font-size: 13px; line-height: 1.5; flex: 1; }
+    .fortiedr-command-timeline .fctl-narr { margin: 0; font-size: 13px; line-height: 1.5; flex: 1; min-width: 0; text-wrap: pretty; overflow-wrap: break-word; }
     .fortiedr-command-timeline .fctl-tabs { display: inline-flex; border: 1px solid rgba(127,127,127,.4); border-radius: 6px; overflow: hidden; flex: none; }
     .fortiedr-command-timeline .fctl-tab { border: 0; background: transparent; color: inherit; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 4px 12px; cursor: pointer; opacity: .7; }
     .fortiedr-command-timeline .fctl-tab-on { background: rgba(34,211,238,.16); opacity: 1; }
     .fortiedr-command-timeline .fctl-stat { padding: 2px 9px; border-radius: 999px; border: 1px solid rgba(127,127,127,.3); font-size: 11px; }
     .fortiedr-command-timeline .fctl-stat b { font-weight: 700; margin-right: 2px; }
     .fortiedr-command-timeline .fctl-lead { margin: 10px 0 0 0; }
-    .fortiedr-command-timeline .fctl-lead-btn { width: 100%; display: flex; gap: 10px; align-items: baseline; text-align: left; cursor: pointer;
-      border: 1px dashed rgba(127,127,127,.4); border-radius: 6px; background: transparent; color: inherit; padding: 6px 10px; font-size: 12px; }
-    .fortiedr-command-timeline .fctl-lead-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .7; white-space: nowrap; }
-    .fortiedr-command-timeline .fctl-lead-names { flex: 1; font-family: monospace; opacity: .85; }
-    .fortiedr-command-timeline .fctl-lead-names i { opacity: .5; font-style: normal; }
-    .fortiedr-command-timeline .fctl-lead-more { font-size: 11px; opacity: .6; white-space: nowrap; }
+    .fortiedr-command-timeline .fctl-lead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; border: 1px dashed rgba(127,127,127,.4); border-radius: 6px; font-size: 12px; }
+    .fortiedr-command-timeline .fctl-lead-text { opacity: .85; font-family: inherit; }
+    .fortiedr-command-timeline .fctl-lead-btn { flex: none; cursor: pointer; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 5px; border: 1px solid rgba(34,211,238,.6); background: rgba(34,211,238,.12); color: inherit; }
     .fortiedr-command-timeline .fctl-steps { list-style: none; margin: 10px 0 0 0; padding: 0; }
     .fortiedr-command-timeline .fctl-step { display: flex; gap: 10px; position: relative; }
     .fortiedr-command-timeline .fctl-rail { flex: none; width: 28px; position: relative; display: flex; justify-content: center; }
@@ -157,19 +160,19 @@
     .fortiedr-command-timeline .fctl-chip-act { color: #e5484d; border-color: #e5484d; }
     .fortiedr-command-timeline .fctl-chip-net { color: #3b82f6; border-color: #3b82f6; }
     .fortiedr-command-timeline .fctl-delta { margin-left: auto; font-size: 11px; opacity: .55; font-variant-numeric: tabular-nums; }
-    .fortiedr-command-timeline .fctl-cmd { font-family: monospace; font-size: 12px; margin: 2px 0 0 0; padding: 6px 9px; border-radius: 5px; background: rgba(127,127,127,.13); word-break: break-all; white-space: pre-wrap; }
+    .fortiedr-command-timeline .fctl-cmd { font-family: monospace; font-size: 12px; margin: 2px 0 0 0; padding: 6px 9px; border-radius: 5px; background: rgba(127,127,127,.13); word-break: normal; overflow-wrap: anywhere; white-space: pre-wrap; }
     .fortiedr-command-timeline .fctl-step-activity .fctl-cmd { background: rgba(229,72,77,.10); border-left: 3px solid #e5484d; }
     .fortiedr-command-timeline .fctl-tok-ip { color: #3b82f6; font-weight: 700; }
     .fortiedr-command-timeline .fctl-tok-sock { color: #e5484d; font-weight: 700; }
     .fortiedr-command-timeline .fctl-tok-tmp { color: #e2a400; font-weight: 700; }
-    .fortiedr-command-timeline .fctl-netline { font-size: 12.5px; padding: 6px 9px; border-radius: 5px; background: rgba(59,130,246,.12); word-break: break-all; }
+    .fortiedr-command-timeline .fctl-netline { font-size: 12.5px; padding: 6px 9px; border-radius: 5px; background: rgba(59,130,246,.12); overflow-wrap: anywhere; }
     .fortiedr-command-timeline .fctl-signals { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
     .fortiedr-command-timeline .fctl-sig { font-size: 11px; padding: 1px 8px; border-radius: 4px; background: rgba(226,164,0,.14); color: #e2a400; }
     .fortiedr-command-timeline .fctl-hint { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; opacity: .45; margin-top: 4px; }
     .fortiedr-command-timeline .fctl-more { margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(127,127,127,.3); }
     .fortiedr-command-timeline .fctl-fact { padding: 3px 0; font-size: 12px; }
     .fortiedr-command-timeline .fctl-fact-k { display: block; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; opacity: .6; }
-    .fortiedr-command-timeline .fctl-fact-v { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-family: monospace; word-break: break-all; }
+    .fortiedr-command-timeline .fctl-fact-v { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-family: monospace; overflow-wrap: anywhere; }
     .fortiedr-command-timeline .fctl-state {
       padding: 14px 12px; border: 1px dashed rgba(127, 127, 127, 0.4);
       border-radius: 6px; font-size: 12.5px;
@@ -185,7 +188,7 @@
         <p class="fctl-narr" data-ng-if="story.narrative" data-testid="fortiedr-command-timeline-narrative">{{ story.narrative }}</p>
         <div class="fctl-tabs" role="tablist" data-ng-if="!graphEmpty">
           <button type="button" class="fctl-tab" data-ng-class="{ 'fctl-tab-on': view === 'story' }"
-                  data-ng-click="setView('story')" data-testid="fortiedr-command-timeline-tab-story">Story</button>
+                  data-ng-click="setView('story')" data-testid="fortiedr-command-timeline-tab-story">Timeline</button>
           <button type="button" class="fctl-tab" data-ng-class="{ 'fctl-tab-on': view === 'graph' }"
                   data-ng-click="setView('graph')" data-testid="fortiedr-command-timeline-tab-graph">Graph</button>
         </div>
@@ -202,13 +205,16 @@
 
     <!-- STORY: how it started, what it did, where it reached -->
     <div class="fctl-story" data-ng-if="view === 'story' && !graphEmpty" data-testid="fortiedr-command-timeline-story">
+      <!-- The earliest parent processes are folded so the interesting steps lead.
+           Plain words, one button: this is a fold, not a filter. -->
       <div class="fctl-lead" data-ng-if="story.lead.length" data-testid="fortiedr-command-timeline-lead">
+        <span class="fctl-lead-text" data-testid="fortiedr-command-timeline-lead-text">
+          <span data-ng-if="!leadOpen">Showing the last {{ visibleSteps().length }} of {{ story.steps.length }} steps.
+            Earlier steps, hidden: {{ leadNames() }}.</span>
+          <span data-ng-if="leadOpen">Showing all {{ story.steps.length }} steps, oldest first.</span>
+        </span>
         <button type="button" class="fctl-lead-btn" data-ng-click="toggleLead()">
-          <span class="fctl-lead-label">How it started</span>
-          <span class="fctl-lead-names">
-            <span data-ng-repeat="l in story.lead">{{ l.node.name }}<i data-ng-if="!$last"> &rsaquo; </i></span>
-          </span>
-          <span class="fctl-lead-more">{{ leadOpen ? 'hide' : 'show ' + story.lead.length }}</span>
+          {{ leadOpen ? 'Hide the earlier ' + story.lead.length : 'Show the earlier ' + story.lead.length }}
         </button>
       </div>
 
@@ -255,7 +261,7 @@
                 </ul>
               </div>
             </div>
-            <div class="fctl-hint" data-ng-if="hasMore(st)">{{ open[st.id] ? 'less' : 'details' }}</div>
+            <div class="fctl-hint" data-ng-if="hasMore(st)">{{ open[st.id] ? 'Hide details' : 'Show details' }}</div>
           </div>
         </li>
       </ol>
@@ -272,6 +278,10 @@
         <span><span class="fctl-dot fctl-dot-activity"></span>activity</span>
         <span><span class="fctl-dot fctl-dot-net"></span>internet host</span>
         <span class="fctl-dim">tap a node for its stages</span>
+        <button type="button" class="fctl-legend-btn" data-ng-if="story.lead.length"
+                data-ng-click="setGraphFold(!graphFolded)" data-testid="fortiedr-command-timeline-graph-fold">
+          {{ graphFolded ? 'Show the earlier ' + story.lead.length : 'Fold the earlier ' + story.lead.length }}
+        </button>
       </div>
       <div class="fctl-detail" data-ng-if="selected" data-testid="fortiedr-command-timeline-detail">
         <div class="fctl-detail-head">

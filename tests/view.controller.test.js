@@ -179,14 +179,16 @@ describe("fortiedrCommandTimeline view controller", () => {
     expect(opts.elements.nodes.map((n) => n.data.id)).toEqual(
       ["5302", "5304", "net:1.1.1.1"]);
     expect(opts.elements.edges).toEqual([
-      { data: { id: "e0", source: "5302", target: "5304", net: false } },
-      { data: { id: "e1", source: "5304", target: "net:1.1.1.1", net: true } },
+      { data: { id: "e0", source: "5302", target: "5304", net: false,
+                color: graphModel.COLORS.ACTIVITY_BORDER } },
+      { data: { id: "e1", source: "5304", target: "net:1.1.1.1", net: true,
+                color: graphModel.COLORS.NET_BORDER } },
     ]);
     // Cards: name + PID, the kind an activity node committed, its command.
     expect(opts.elements.nodes[1].data.label).toBe(
-      "bash\nPID 5304\nCONNECTION STACK\n6 bash -c exec 3<>/dev/tcp/1.1.1.1/443");
+      "bash\nPID 5304\nCONNECTION STACK");
     expect(opts.elements.nodes[0].data.label).toBe(
-      "sudo\nPID 5302\nbash /tmp/edr_lab.sh all");
+      "sudo\nPID 5302");
     // The internet host card carries the API's own triple.
     expect(opts.elements.nodes[2].data.label).toBe(
       "Internet host\n1.1.1.1\nAS 13335 CLOUDFLARENET");
@@ -464,6 +466,13 @@ describe("fortiedrCommandTimeline story view", () => {
     const ctl = readyController({ defaultView: "story" }, rec);
     const stage = { path: "/usr/bin/x", modules: [{ path: "/usr/bin/x" }, { path: "/lib/y.so" }] };
     expect(ctl.$scope.otherModules(stage)).toEqual([{ path: "/lib/y.so" }]);
+  });
+
+  test("leadNames lists what the fold hides, in order", () => {
+    const ctl = readyController({ defaultView: "story" }, rec);
+    expect(ctl.$scope.leadNames()).toBe("");          // a 2-step chain folds nothing
+    ctl.$scope.story = { lead: [{ node: { name: "systemd" } }, { node: { name: "sshd" } }] };
+    expect(ctl.$scope.leadNames()).toBe("systemd > sshd");
   });
 
   test("a chain with no branches is not indented", () => {

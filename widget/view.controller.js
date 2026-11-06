@@ -38,7 +38,8 @@
     $scope.story = null;      // the storyline (steps / lead / stats / narrative)
     $scope.leadOpen = false;  // the folded "how it started" run
     $scope.open = {};         // story steps expanded inline
-    var lastGraph = null, lastElements = null;
+    var lastGraph = null;
+    $scope.graphFolded = true;   // the graph opens with the early ancestry folded
 
     var cy = null;            // cytoscape instance
     // The platform can rebuild the widget while a layout is in flight; the
@@ -110,7 +111,7 @@
       }
       $scope.graphEmpty = false;
       lastGraph = graph;
-      lastElements = g.toElements(graph);
+      $scope.graphFolded = $scope.story.lead.length > 0;
       if ($scope.view === "graph") mountCy();
     }
 
@@ -118,8 +119,9 @@
     // tab: the story view is plain DOM and needs no canvas.
     function mountCy() {
       var C = $window.cytoscape;
-      var graph = lastGraph, elements = lastElements;
-      if (!graph) return;
+      if (!lastGraph) return;
+      var graph = $scope.graphFolded ? g.foldLead(lastGraph, $scope.story) : lastGraph;
+      var elements = g.toElements(graph);
       if (!C) {
         $scope.state = "error";
         $scope.error = "The graph library failed to load.";
@@ -152,6 +154,7 @@
           autoungrabify: true
         });
         cy.on("tap", "node", function (evt) {
+          if (evt.target.id() === "fold") { $scope.setGraphFold(false); $scope.$apply(); return; }
           evt.target.select();
           select(evt.target.id(), graph);
           $scope.$apply();
@@ -180,6 +183,15 @@
 
     $scope.closeDetail = function () { $scope.selected = null; };
 
+    // Fold or unfold the earliest ancestry on the graph; remounts the canvas.
+    $scope.setGraphFold = function (folded) {
+      if (folded === $scope.graphFolded) return;
+      $scope.graphFolded = folded;
+      $scope.selected = null;
+      if (cy) { try { cy.destroy(); } catch (e) {} cy = null; }
+      mountCy();
+    };
+
     $scope.setView = function (v) {
       if (v === $scope.view) return;
       $scope.view = v;
@@ -202,6 +214,11 @@
     // A function, not `leadOpen = !leadOpen` in the template: ng-if scopes
     // would shadow the flag on a child scope.
     $scope.toggleLead = function () { $scope.leadOpen = !$scope.leadOpen; };
+    // The folded steps' names, for the sentence that says what is hidden.
+    $scope.leadNames = function () {
+      var st = $scope.story;
+      return st ? st.lead.map(function (l) { return l.node.name; }).join(" > ") : "";
+    };
     $scope.kindOf = function (step) { return g.kindText(step.node); };
     // Only stages that carry something the card line does not already show.
     $scope.hasMore = function (step) {

@@ -286,23 +286,17 @@ describe("cardLabel / kindText -- what the canvas card says", () => {
     expect(systemd.data.label).toBe("systemd\nPID 1");
   });
 
-  test("a command-bearing ancestry card adds its command line", () => {
+  test("a command-bearing ancestry card stays two lines: commands live in the story", () => {
     const els = g.toElements(bashGraph());
     const sshd = els.nodes.find((n) => n.data.id === "5225");
-    expect(sshd.data.label).toBe("sshd\nPID 5225\n-D -R");
+    expect(sshd.data.label).toBe("sshd\nPID 5225");
   });
 
-  test("an activity card names what it did", () => {
+  test("an activity card names what it did, without the command", () => {
     const els = g.toElements(bashGraph());
     const shell = els.nodes.find((n) => n.data.id === "5346");
-    const lines = shell.data.label.split("\n");
-    expect(lines[0]).toBe("bash");
-    expect(lines[1]).toBe("PID 5346");
-    expect(lines[2]).toBe("CONNECTION STACK");
-    // The long command truncates with ASCII dots.
-    expect(lines[3]).toMatch(/^-c exec 3<>\/dev\/tcp\/1\.1\.1\.1\/443/);
-    expect(lines[3].endsWith("...")).toBe(true);
-    expect(lines[3].length).toBe(42);
+    expect(shell.data.label).toBe("bash\nPID 5346\nCONNECTION STACK");
+    expect(shell.data.label).not.toContain("/dev/tcp");
   });
 
   test("a merged node summarizes its kinds: first kind + count", () => {
@@ -311,11 +305,13 @@ describe("cardLabel / kindText -- what the canvas card says", () => {
     expect(control.data.label).toBe("control.exe\nPID 4392\nTHREAD CREATION STACK +2");
   });
 
-  test("long commands ellipsize with ASCII dots (no en/em dashes)", () => {
-    const label = g.cardLabel({ name: "bash", pid: "9", kinds: ["CONNECTION STACK"],
-                                command: "x".repeat(100), activity: true, net: null });
-    expect(label.split("\n")[3].endsWith("...")).toBe(true);
-    expect(label.split("\n")[3].length).toBe(42);
+  test("long kinds ellipsize with ASCII dots (no en/em dashes)", () => {
+    const label = g.cardLabel({ name: "x".repeat(60), pid: "9", kinds: ["K".repeat(80)],
+                                command: "ignored", activity: true, net: null });
+    const lines = label.split("\n");
+    expect(lines[0].endsWith("...")).toBe(true);
+    expect(lines[2].endsWith("...")).toBe(true);
+    expect(label).not.toContain("ignored");
   });
 
   test("kindText: ancestry-only -> empty; activity -> first kind; merged -> +N", () => {
@@ -346,7 +342,8 @@ describe("toElements", () => {
     const els = g.toElements(bashGraph());
     expect(els.edges.length).toBe(9);
     expect(els.edges[8]).toEqual({
-      data: { id: "e8", source: "5346", target: "net:1.1.1.1", net: true },
+      data: { id: "e8", source: "5346", target: "net:1.1.1.1", net: true,
+              color: g.COLORS.NET_BORDER },
     });
   });
 });
@@ -482,5 +479,48 @@ describe("toStory", () => {
     const s = story();
     expect(s.steps.map((x) => x.icon)).toEqual(
       ["cube", "key", "key", "key", "terminal", "shield", "terminal", "cube", "terminal", "globe"]);
+  });
+});
+
+describe("graph polish", () => {
+  test("nodes carry a role class and an icon; edges into activity are red", () => {
+    const els = g.toElements(bashGraph());
+    const shell = els.nodes.find((n) => n.data.id === "5346");
+    expect(shell.classes).toBe("activity");
+    expect(shell.data.icon).toMatch(/^data:image\/svg\+xml/);
+    const into = els.edges.find((e) => e.data.target === "5346");
+    expect(into.data.color).toBe(g.COLORS.ACTIVITY_BORDER);
+    const plain = els.edges.find((e) => e.data.target === "5304");
+    expect(plain.data.color).toBe(g.COLORS.EDGE_COLOR);
+  });
+
+  test("foldLead replaces the leading ancestry with one node and keeps the rest wired", () => {
+    const graph = bashGraph();
+    const story = g.toStory(graph);
+    const folded = g.foldLead(graph, story);
+    expect(story.lead.length).toBe(6);
+    expect(folded.nodes.length).toBe(graph.nodes.length - 6 + 1);
+    expect(folded.nodes[0]).toMatchObject({ id: "fold", fold: true });
+    expect(folded.nodes[0].label).toMatch(/^6 earlier processes\n/);
+    // One edge from the fold into the first visible process; none inside the run.
+    const out = folded.edges.filter((e) => e.source === "fold");
+    expect(out.length).toBe(1);
+    const ids = folded.nodes.map((n) => n.id);
+    folded.edges.forEach((e) => { expect(ids).toContain(e.source); expect(ids).toContain(e.target); });
+    // The input graph is not mutated.
+    expect(graph.nodes.length).toBe(10);
+  });
+
+  test("a short chain folds nothing and returns the same graph", () => {
+    const graph = g.toGraph(bashTimeline({ stacks: bashChain().slice(0, 2) }));
+    expect(g.foldLead(graph, g.toStory(graph))).toBe(graph);
+  });
+
+  test("the fold node renders as a dashed card", () => {
+    const graph = bashGraph();
+    const els = g.toElements(g.foldLead(graph, g.toStory(graph)));
+    const fold = els.nodes.find((n) => n.data.id === "fold");
+    expect(fold.classes).toBe("fold");
+    expect(g.graphStyle().find((s) => s.selector === "node.fold").style["border-style"]).toBe("dashed");
   });
 });

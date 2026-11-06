@@ -209,46 +209,106 @@
     return acts.length > 1 ? acts[0] + " +" + (acts.length - 1) : acts[0];
   }
 
-  // The canvas card: process name / PID / what it did / how. Compact on
-  // purpose -- ancestry cards are two short lines.
+  // The canvas card: process name / PID / what it did. Command lines live in
+  // the Story view and the tapped node's detail: packing them into a card made
+  // the graph a wall of text.
   function cardLabel(node) {
     if (!node) return "";
     if (node.net) return node.label;
-    var lines = [ellipsize(node.name, 26)];
+    if (node.fold) return node.label;
+    var lines = [ellipsize(node.name, 24)];
     if (node.pid) lines.push("PID " + node.pid);
     var kind = kindText(node);
-    if (kind) lines.push(ellipsize(kind, 34));
-    if (node.command) lines.push(ellipsize(node.command, 42));
+    if (kind) lines.push(ellipsize(kind, 30));
     return lines.join("\n");
+  }
+
+  // Icons for the card's left edge: white strokes as data URIs (cytoscape
+  // paints them as the node's background image).
+  function svgUri(path, fill) {
+    return "data:image/svg+xml;utf8," + encodeURIComponent(
+      "<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 24 24' fill='" + (fill || "none") +
+      "' stroke='#e8ebf0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'>" + path + "</svg>");
+  }
+  var ICONS = {
+    terminal: svgUri("<path d='M4 6l6 6-6 6M12 19h8'/>"),
+    globe: svgUri("<circle cx='12' cy='12' r='9'/><path d='M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18'/>"),
+    shield: svgUri("<path d='M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z'/>"),
+    key: svgUri("<circle cx='8' cy='15' r='4'/><path d='M11 12l9-9M16 7l3 3'/>"),
+    cube: svgUri("<path d='M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9'/>"),
+    layers: svgUri("<path d='M12 3l9 5-9 5-9-5zM3 13l9 5 9-5'/>")
+  };
+
+  // The earliest plain-ancestry run collapsed into ONE node, mirroring the
+  // story's fold (story.lead): the chain then opens on the interesting part.
+  // Returns a new graph; the input is untouched.
+  function foldLead(graph, story) {
+    var lead = (story && story.lead) || [];
+    if (!lead.length) return graph;
+    var hide = {};
+    lead.forEach(function (st) { hide[st.id] = true; });
+    var names = lead.map(function (st) { return st.node.name; });
+    var fold = {
+      id: "fold", pid: "", name: lead.length + " earlier processes", fold: true,
+      label: lead.length + " earlier processes\n" + ellipsize(names.join(" > "), 40),
+      command: "", activity: false, net: null, kinds: [], stages: [], firstEpoch: 0,
+      hidden: lead.map(function (st) { return st.node; })
+    };
+    var nodes = [fold].concat(graph.nodes.filter(function (n) { return !hide[n.id]; }));
+    var edges = [], seen = {};
+    graph.edges.forEach(function (e) {
+      var from = hide[e.source] ? (hide[e.target] ? null : "fold") : e.source;
+      if (!from) return;                                   // inside the folded run
+      var k = from + "->" + e.target;
+      if (seen[k]) return;
+      seen[k] = true;
+      edges.push({ source: from, target: e.target, net: e.net });
+    });
+    return { nodes: nodes, edges: edges, roots: ["fold"] };
   }
 
   /** Cytoscape element JSON for a graph. */
   function toElements(graph) {
-    return {
-      nodes: graph.nodes.map(function (n) {
-        return {
-          data: {
-            id: n.id, label: cardLabel(n), name: n.name, pid: n.pid,
-            color: n.net ? COLORS.NET_BORDER
-                 : (n.activity ? COLORS.ACTIVITY_BORDER : COLORS.ANCESTRY_BORDER),
-            net: !!n.net, activity: !!n.activity,
-            kindCount: n.kinds.length, stageCount: n.stages.length
-          }
-        };
-      }),
-      edges: graph.edges.map(function (e, i) {
-        return { data: { id: "e" + i, source: e.source, target: e.target, net: !!e.net } };
-      })
-    };
+    var roleOf = {};
+    var nodes = graph.nodes.map(function (n) {
+      var role = n.fold ? "fold" : (n.net ? "net" : (n.activity ? "activity" : "ancestry"));
+      roleOf[n.id] = role;
+      return {
+        data: {
+          id: n.id, label: cardLabel(n), name: n.name, pid: n.pid,
+          color: n.net ? COLORS.NET_BORDER
+               : (n.activity ? COLORS.ACTIVITY_BORDER : COLORS.ANCESTRY_BORDER),
+          net: !!n.net, activity: !!n.activity, fold: !!n.fold, role: role,
+          icon: ICONS[n.fold ? "layers" : iconKeyFor(n)],
+          kindCount: n.kinds.length, stageCount: n.stages.length
+        },
+        classes: role
+      };
+    });
+    var edges = graph.edges.map(function (e, i) {
+      var tr = roleOf[e.target];
+      return { data: { id: "e" + i, source: e.source, target: e.target, net: !!e.net,
+        color: e.net ? COLORS.NET_BORDER : (tr === "activity" ? COLORS.ACTIVITY_BORDER : COLORS.EDGE_COLOR) } };
+    });
+    return { nodes: nodes, edges: edges };
   }
 
-  // Palette (ztp card idiom): ONE dark fill for every card; the 4px BORDER
-  // carries the meaning -- slate = ancestry, red = activity, blue = the
-  // internet host. White labels read on the fixed dark fill in light AND
-  // dark panels.
-  var FILL = "#2b3648", LABEL = "#e8ebf0";
+  // Same mapping the story's iconFor uses, on a graph node.
+  function iconKeyFor(node) {
+    if (node.net) return "globe";
+    var n = String(node.name || "").toLowerCase().replace(/\.exe$/, "");
+    if (/^(bash|sh|zsh|dash|ksh|fish|cmd|powershell|pwsh)$/.test(n)) return "terminal";
+    if (/^(sudo|su|runas|doas)$/.test(n)) return "shield";
+    if (/^(sshd|ssh|rdp|mstsc|winrm)/.test(n)) return "key";
+    return "cube";
+  }
+
+  // Palette: ONE dark fill; the border and a soft glow carry the meaning --
+  // slate = ancestry (muted), red = activity (glowing), blue = the internet
+  // host. Labels read on the fixed dark canvas in light AND dark panels.
+  var FILL = "#2b3648", LABEL = "#e8ebf0", LABEL_MUTED = "#aab4c3";
   var ANCESTRY_BORDER = "#64748b", ACTIVITY_BORDER = "#e5484d", NET_BORDER = "#3b82f6";
-  var EDGE_COLOR = "#7b8494";
+  var EDGE_COLOR = "#5b6577";
   var SELECT_COLOR = "#22d3ee";
 
   function graphStyle() {
@@ -257,34 +317,63 @@
         selector: "node",
         style: {
           shape: "round-rectangle",
-          width: 200, height: "label",
-          "padding-top": "8px", "padding-bottom": "8px",
+          width: CARD_W, height: "label",
+          "padding-top": "10px", "padding-bottom": "10px",
+          "padding-left": "34px", "padding-right": "10px",
           "background-color": FILL,
-          "border-width": 4, "border-color": "data(color)",
+          "border-width": 2, "border-color": "data(color)",
+          "background-image": "data(icon)",
+          "background-fit": "none", "background-width": 16, "background-height": 16,
+          "background-position-x": 12, "background-position-y": "50%",
+          "background-clip": "none",
           label: "data(label)",
           color: LABEL,
-          "font-size": 11, "font-weight": 600,
+          "font-size": 11, "font-weight": 600, "line-height": 1.3,
           "font-family": "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
           "text-valign": "center", "text-halign": "center",
-          "text-wrap": "wrap", "text-max-width": 176,
-          "text-margin-y": 0
+          "text-wrap": "wrap", "text-max-width": CARD_W - 52,
+          "text-margin-x": 12
+        }
+      },
+      { selector: "node.ancestry", style: { color: LABEL_MUTED, "border-opacity": 0.8 } },
+      {
+        selector: "node.activity",
+        style: {
+          "border-width": 3,
+          "underlay-color": ACTIVITY_BORDER, "underlay-opacity": 0.22,
+          "underlay-padding": 7, "underlay-shape": "round-rectangle"
+        }
+      },
+      {
+        selector: "node.net",
+        style: {
+          "underlay-color": NET_BORDER, "underlay-opacity": 0.2,
+          "underlay-padding": 7, "underlay-shape": "round-rectangle"
+        }
+      },
+      {
+        selector: "node.fold",
+        style: {
+          "background-opacity": 0.35, "border-style": "dashed",
+          color: LABEL_MUTED, "font-weight": 500
         }
       },
       {
         selector: "node.selected",
         style: {
-          "border-width": 6,
-          "border-color": SELECT_COLOR
+          "border-width": 3,
+          "border-color": SELECT_COLOR,
+          "underlay-color": SELECT_COLOR, "underlay-opacity": 0.25, "underlay-padding": 7
         }
       },
       {
         selector: "edge",
         style: {
-          width: 2,
-          "line-color": EDGE_COLOR,
-          "target-arrow-color": EDGE_COLOR,
+          width: 1.8,
+          "line-color": "data(color)",
+          "target-arrow-color": "data(color)",
           "target-arrow-shape": "triangle",
-          "arrow-scale": 1.1,
+          "arrow-scale": 0.9,
           "curve-style": "bezier"
         }
       },
@@ -298,8 +387,8 @@
 
   // Card geometry shared by the style and the snake layout. The style's
   // width IS 200 -- the snake math must never disagree with the paint.
-  var CARD_W = 200, CARD_H = 78;   // height nominal: real cards auto-height
-  var SEP_X = 60, SEP_Y = 46, PAD = 30;
+  var CARD_W = 184, CARD_H = 64;   // height nominal: real cards auto-height
+  var SEP_X = 56, SEP_Y = 44, PAD = 32;
 
   /**
    * Snake layout for LINEAR chains: the chain wraps boustrophedon into rows
@@ -418,15 +507,8 @@
     return sig;
   }
 
-  // Icon key for a card (mapped to CSS-mask SVGs in the template).
-  function iconFor(node) {
-    if (node.net) return "globe";
-    var n = String(node.name || "").toLowerCase().replace(/\.exe$/, "");
-    if (/^(bash|sh|zsh|dash|ksh|fish|cmd|powershell|pwsh)$/.test(n)) return "terminal";
-    if (/^(sudo|su|runas|doas)$/.test(n)) return "shield";
-    if (/^(sshd|ssh|rdp|mstsc|winrm)/.test(n)) return "key";
-    return "cube";
-  }
+  // Icon key for a card (CSS-mask SVGs in the story, data URIs on the canvas).
+  var iconFor = iconKeyFor;
 
   function fmtDelta(sec) {
     if (!(sec >= 0) || !isFinite(sec)) return "";
@@ -528,7 +610,7 @@
   var COLORS = {
     FILL: FILL, LABEL: LABEL,
     ANCESTRY_BORDER: ANCESTRY_BORDER, ACTIVITY_BORDER: ACTIVITY_BORDER,
-    NET_BORDER: NET_BORDER, EDGE_COLOR: EDGE_COLOR, SELECT_COLOR: SELECT_COLOR
+    NET_BORDER: NET_BORDER, EDGE_COLOR: EDGE_COLOR, SELECT_COLOR: SELECT_COLOR, LABEL_MUTED: LABEL_MUTED
   };
 
   var model = {
@@ -538,6 +620,7 @@
     kindText: kindText,
     cardLabel: cardLabel,
     toGraph: toGraph,
+    foldLead: foldLead,
     toElements: toElements,
     graphStyle: graphStyle,
     graphLayout: graphLayout,
